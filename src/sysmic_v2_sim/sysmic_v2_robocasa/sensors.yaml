@@ -1,0 +1,152 @@
+# SYSMIC 2.0 sensors for RoboCasa / MuJoCo
+#
+# Edit this file, then restart the simulation. Nothing has to be rebuilt.
+#   enabled: false        switches a sensor (or one stream of it) off
+#   link                  URDF link the sensor is fixed to; it moves with that link
+#   pos                   position in that link's frame, metres (x forward, y left, z up)
+#   rpy                   roll, pitch, yaw in degrees, sensor x axis = viewing direction;
+#                         positive pitch tilts it down
+#   rate                  Hz. Cameras and IMUs are sampled once per control step, so
+#                         their rate cannot be higher than sim.control_freq.
+#   topic                 ROS 2 topic name (the bridge publishes it)
+#   show                  draw the sensor as a small box (visual only: no collision, no
+#                         mass), in the simulation and in RViz. A camera's box sits just
+#                         behind its lens, so it does not appear in its own image.
+#   size                  that box: [depth along the view, width, height] in metres
+#   body_color            that box: "r g b a" (default dark grey)
+#
+# Speed: rendering one camera image of a kitchen takes about 10 ms. Under ROS a
+# camera is only rendered while somebody subscribes to its topic, so unwatched
+# cameras cost nothing; lidars and IMUs are cheap. With all five camera streams
+# watched at 30 Hz the simulation runs at about 0.4x real time on a GTX 1650 laptop;
+# lower `rate`, `width`/`height`, or disable cameras you do not need.
+#
+# Mount points come from the CAD meshes: the face window and the two lidar pucks are
+# modelled in sysmic.urdf's meshes; the gripper cameras sit on the flat palm face
+# between the fixed finger and the jaw, looking along the fingers.
+
+sim:
+  control_freq: 30          # Hz, simulation control / publish rate
+
+cameras:
+  head_camera:              # Intel RealSense D435i in the face window
+    model: realsense_d435i
+    enabled: true
+    link: lift_carriage_link
+    pos: [0.126, 0.0, 0.195]   # centre of the 90 x 40 mm face window, flush with the face
+    rpy: [0, 15, 0]
+    rate: 30
+    show: true
+    size: [0.025, 0.090, 0.025]     # D435i housing, 90 x 25 x 25 mm, in the face window
+    color:
+      enabled: true
+      width: 640
+      height: 360           # 16:9 like the D435i colour sensor
+      hfov: 69              # degrees (D435i colour: 69 x 42)
+      offset: [0.0, -0.015, 0.0]   # colour imager sits 15 mm right of the depth origin
+      topic: /head_camera/color/image_raw
+    depth:
+      enabled: true
+      width: 640
+      height: 360
+      hfov: 87              # degrees (D435i depth: 87 x 58)
+      min_range: 0.3        # m; closer or farther pixels are 0 (invalid), like the real camera
+      max_range: 10.0
+      topic: /head_camera/depth/image_raw   # 16UC1, millimetres
+    imu:                    # the D435i's built-in IMU (BMI055)
+      enabled: false
+      rate: 30
+      accel_noise: 0.02     # m/s^2, standard deviation
+      gyro_noise: 0.002     # rad/s
+      topic: /head_camera/imu
+
+  tray_camera:              # webcam under the "SYSMIC" plate, looking down at the tray
+    model: webcam
+    enabled: true
+    link: lift_carriage_link
+    pos: [0.190, 0.0, -0.180]
+    rpy: [0, 65, 0]         # the tray is in view from about lift 0.15 m up; at lift 0 the
+                            # camera is lower than the tray top
+    rate: 30
+    show: true
+    size: [0.020, 0.030, 0.030]
+    width: 640
+    height: 480             # 4:3
+    hfov: 75                # degrees (70 to 80)
+    topic: /tray_camera/image_raw
+
+  left_gripper_camera:      # webcam on the left gripper's palm, between the fingers
+    model: webcam
+    enabled: true
+    link: arm_left_wrist_roll_link
+    show: true
+    size: [0.010, 0.024, 0.024]     # sunk into the 50 x 60 mm flat palm, flush with it
+    pos: [0.069, 0.0013, 0.0028]    # lens on the palm face (x = 0.068)
+    rpy: [0, 0, 0]
+    rate: 30
+    width: 640
+    height: 480
+    hfov: 75
+    topic: /left_gripper_camera/image_raw
+
+  right_gripper_camera:     # webcam on the right gripper's palm, between the fingers
+    model: webcam
+    enabled: true
+    link: arm_right_wrist_roll_link
+    show: true
+    size: [0.010, 0.024, 0.024]     # sunk into the 50 x 60 mm flat palm, flush with it
+    pos: [0.069, -0.0013, 0.0028]   # lens on the palm face (x = 0.068)
+    rpy: [0, 0, 0]
+    rate: 30
+    width: 640
+    height: 480
+    hfov: 75
+    topic: /right_gripper_camera/image_raw
+
+lidars:
+  lidar_top:                # YDLIDAR on top of the head (moves with the lift)
+    model: ydlidar
+    enabled: true
+    link: lift_carriage_link
+    pos: [0.057, 0.0, 0.330]
+    rpy: [0, 0, 0]
+    show: false             # the lidar puck is already part of the CAD mesh
+    size: [0.060, 0.060, 0.040]
+    rate: 10                # Hz
+    min_range: 0.12         # m
+    max_range: 10.0         # m
+    angle_min: -180         # degrees
+    angle_max: 180
+    resolution: 0.5         # degrees between beams (720 beams)
+    noise: 0.01             # m, standard deviation
+    topic: /scan_top
+
+  lidar_base:               # YDLIDAR on the base deck, under the tray
+    model: ydlidar
+    enabled: true
+    link: base_link
+    pos: [0.0, 0.0, 0.285]
+    rpy: [0, 0, 0]
+    show: false             # the lidar puck is already part of the CAD mesh
+    size: [0.060, 0.060, 0.040]
+    rate: 10
+    min_range: 0.12
+    max_range: 10.0
+    angle_min: -180
+    angle_max: 180
+    resolution: 0.5
+    noise: 0.01
+    topic: /scan_base
+
+imus:
+  base_imu:                 # IMU in the base, on the deck
+    enabled: true
+    link: base_link
+    pos: [-0.080, 0.0, 0.270]
+    rpy: [0, 0, 0]
+    show: false             # set true to see where it sits
+    size: [0.020, 0.020, 0.005]
+    rate: 30                # Hz, at most sim.control_freq
+    accel_noise: 0.02       # m/s^2, standard deviation
+    gyro_noise: 0.002       # rad/s
+    topic: /imu

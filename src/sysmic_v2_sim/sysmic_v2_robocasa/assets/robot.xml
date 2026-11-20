@@ -1,0 +1,136 @@
+<?xml version='1.0' encoding='utf-8'?>
+<mujoco model="sysmic">
+  <compiler angle="radian" />
+  <asset>
+    <mesh name="base_link" file="meshes/base_link.stl" />
+    <mesh name="lift_carriage_link_body" file="meshes/lift_carriage_link_body.stl" />
+    <mesh name="lift_carriage_link" file="meshes/lift_carriage_link.stl" />
+    <mesh name="arm1_link0" file="meshes/arm1_link0.stl" />
+    <mesh name="arm1_link1" file="meshes/arm1_link1.stl" />
+    <mesh name="arm1_link2" file="meshes/arm1_link2.stl" />
+    <mesh name="arm1_link3" file="meshes/arm1_link3.stl" />
+    <mesh name="arm1_link4" file="meshes/arm1_link4.stl" />
+    <mesh name="arm1_link5" file="meshes/arm1_link5.stl" />
+    <mesh name="arm2_link0" file="meshes/arm2_link0.stl" />
+    <mesh name="arm2_link1" file="meshes/arm2_link1.stl" />
+    <mesh name="arm2_link2" file="meshes/arm2_link2.stl" />
+    <mesh name="arm2_link3" file="meshes/arm2_link3.stl" />
+    <mesh name="arm2_link4" file="meshes/arm2_link4.stl" />
+    <mesh name="arm2_link5" file="meshes/arm2_link5.stl" />
+    <mesh name="lift_carriage_link_sysmic_text" file="meshes/lift_carriage_link_sysmic_text.stl" inertia="shell" />
+  </asset>
+  <actuator>
+    <motor name="torq_torso_lift" joint="torso_lift_joint" ctrllimited="true" ctrlrange="-1000 1000" />
+    <motor name="torq_right_j1" joint="right_shoulder_pan" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_right_j2" joint="right_shoulder_lift" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_right_j3" joint="right_elbow_flex" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_right_j4" joint="right_wrist_flex" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_right_j5" joint="right_wrist_roll" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_left_j1" joint="left_shoulder_pan" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_left_j2" joint="left_shoulder_lift" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_left_j3" joint="left_elbow_flex" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_left_j4" joint="left_wrist_flex" ctrllimited="true" ctrlrange="-2.9 2.9" />
+    <motor name="torq_left_j5" joint="left_wrist_roll" ctrllimited="true" ctrlrange="-2.9 2.9" />
+  </actuator>
+  <contact>
+    <exclude body1="base_link" body2="torso_lift_link" />
+    <exclude body1="torso_lift_link" body2="right_link1" />
+    <exclude body1="right_link1" body2="right_link3" />
+    <exclude body1="right_link0" body2="right_link2" />
+    <exclude body1="torso_lift_link" body2="left_link1" />
+    <exclude body1="left_link1" body2="left_link3" />
+    <exclude body1="left_link0" body2="left_link2" />
+  </contact>
+  <worldbody>
+    <body name="base" pos="0 0 0">
+      <body name="base_link" pos="0 0 0">
+        <inertial pos="-0.030952 0.000323 0.35517" mass="116.989" diaginertia="14.4782 14.4782 4.93322" />
+        <site name="center" pos="0 0 0" size="0.01" rgba="0 0 0 0" group="2" />
+        <geom name="base_link_vis" type="mesh" mesh="base_link" rgba="0.25 0.25 0.27 1" contype="0" conaffinity="0" group="1" />
+        <geom name="base_tower_col" type="box" pos="-0.148 7.07773e-11 0.88302" size="0.048 0.09 0.28398" group="0" rgba="0.5 0.5 0.5 1" />
+        <body name="torso_lift_link" pos="-0.117 0 0.64">
+          <inertial pos="0.074364 0.002067 -0.02351" mass="30.4006" diaginertia="1.19964 1.16253 0.418896" />
+          <joint name="torso_lift_joint" type="slide" axis="0 0 1" limited="true" range="0 0.447677" damping="50" armature="1" />
+          <geom name="torso_vis" type="mesh" mesh="lift_carriage_link_body" rgba="0.6 0.62 0.65 1" contype="0" conaffinity="0" group="1" />
+          <geom name="torso_vis1" type="mesh" mesh="lift_carriage_link_sysmic_text" rgba="0.05 0.05 0.05 1" contype="0" conaffinity="0" group="1" />
+          <geom name="torso_col" type="mesh" mesh="lift_carriage_link" group="0" rgba="0.5 0.5 0.5 1" />
+          <body name="right_link0" pos="0.111991 -0.114599 0.118729">
+            <inertial pos="-0.038289 -0.002321 0.005641" quat="0.707107 0 0 0.707107" mass="0.364085" diaginertia="0.00103 0.00085 0.000833" />
+            <site name="right_center" pos="0 0 0" size="0.01" rgba="0 0 0 0" group="2" />
+            <geom name="right_link0_vis" type="mesh" mesh="arm2_link0" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+            <geom name="right_link0_col" type="mesh" mesh="arm2_link0" group="0" rgba="0.5 0.5 0.5 1" />
+            <body name="right_link1" pos="0 0 0">
+              <inertial pos="0.030876 -0.026235 0.046965" quat="0.5 0.5 0.5 0.5" mass="0.266738" diaginertia="0.000704 0.000539 0.000493" />
+              <joint name="right_shoulder_pan" type="hinge" axis="0 -0.5 0.866025" limited="true" range="-1.91986 1.91986" damping="0.2" armature="0.01" />
+              <geom name="right_link1_vis" type="mesh" mesh="arm2_link1" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+              <geom name="right_link1_col" type="mesh" mesh="arm2_link1" group="0" rgba="0.5 0.5 0.5 1" />
+              <body name="right_link2" pos="0.031317 -0.029845 0.082277">
+                <inertial pos="-0.064735 -0.012431 -0.00526" quat="0 0.707107 0 0.707107" mass="1.01005" diaginertia="0.002123 0.002107 0.000805" />
+                <joint name="right_shoulder_lift" type="hinge" axis="0 0.866025 0.5" limited="true" range="0 3.49066" damping="0.2" armature="0.01" />
+                <geom name="right_link2_vis" type="mesh" mesh="arm2_link2" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                <geom name="right_link2_col" type="mesh" mesh="arm2_link2" group="0" rgba="0.5 0.5 0.5 1" />
+                <body name="right_link3" pos="-0.112439 -0.013176 0.025842">
+                  <inertial pos="0.068353 -0.010943 -0.006341" quat="0 0.707107 0 0.707107" mass="0.926377" diaginertia="0.002883 0.002645 0.000679" />
+                  <joint name="right_elbow_flex" type="hinge" axis="0 0.866025 0.5" limited="true" range="-3.38594 0" damping="0.2" armature="0.01" />
+                  <geom name="right_link3_vis" type="mesh" mesh="arm2_link3" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                  <geom name="right_link3_col" type="mesh" mesh="arm2_link3" group="0" rgba="0.5 0.5 0.5 1" />
+                  <body name="right_link4" pos="0.134412 -0.000234 0.004566">
+                    <inertial pos="0.031337 -0.007585 -0.004378" quat="0 0.707107 0 0.707107" mass="0.333806" diaginertia="0.000365 0.000324 0.000203" />
+                    <joint name="right_wrist_flex" type="hinge" axis="0 0.866025 0.5" limited="true" range="-1.65806 1.65806" damping="0.2" armature="0.01" />
+                    <geom name="right_link4_vis" type="mesh" mesh="arm2_link4" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                    <geom name="right_link4_col" type="mesh" mesh="arm2_link4" group="0" rgba="0.5 0.5 0.5 1" />
+                    <body name="right_link5" pos="0.029347 -0.009919 -0.006261">
+                      <inertial pos="0.058417 0.009318 -0.004995" quat="0.5 0.5 0.5 0.5" mass="0.62853" diaginertia="0.00088 0.000876 0.000594" />
+                      <joint name="right_wrist_roll" type="hinge" axis="1 0 0" limited="true" range="-2.74017 2.84489" damping="0.2" armature="0.01" />
+                      <geom name="right_link5_vis" type="mesh" mesh="arm2_link5" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                      <geom name="right_link5_col" type="box" pos="0.0534662 0.00718603 0.000604274" size="0.0222963 0.0329544 0.0347128" group="0" rgba="0.5 0.5 0.5 1" quat="0.5 0.866025 0 0" />
+                      <body name="right_hand" pos="0 0 0" />
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+          <body name="left_link0" pos="0.111991 0.1146 0.118728">
+            <inertial pos="-0.038289 0.003725 0.004831" quat="0 0.707107 0 0.707107" mass="0.364085" diaginertia="0.000973 0.000889 0.000848" />
+            <site name="left_center" pos="0 0 0" size="0.01" rgba="0 0 0 0" group="2" />
+            <geom name="left_link0_vis" type="mesh" mesh="arm1_link0" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+            <geom name="left_link0_col" type="mesh" mesh="arm1_link0" group="0" rgba="0.5 0.5 0.5 1" />
+            <body name="left_link1" pos="0 0 0">
+              <inertial pos="0.030876 0.027555 0.046203" quat="0.5 0.5 0.5 0.5" mass="0.266738" diaginertia="0.000651 0.00059 0.000492" />
+              <joint name="left_shoulder_pan" type="hinge" axis="0 0.5 0.866025" limited="true" range="-1.91986 1.91986" damping="0.2" armature="0.01" />
+              <geom name="left_link1_vis" type="mesh" mesh="arm1_link1" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+              <geom name="left_link1_col" type="mesh" mesh="arm1_link1" group="0" rgba="0.5 0.5 0.5 1" />
+              <body name="left_link2" pos="0.031317 0.056332 0.066985">
+                <inertial pos="-0.064735 -0.010771 0.008136" quat="0 0.707107 0 0.707107" mass="1.01005" diaginertia="0.002226 0.002087 0.000888" />
+                <joint name="left_shoulder_lift" type="hinge" axis="0 0.866025 -0.5" limited="true" range="0 3.49066" damping="0.2" armature="0.01" />
+                <geom name="left_link2_vis" type="mesh" mesh="arm1_link2" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                <geom name="left_link2_col" type="mesh" mesh="arm1_link2" group="0" rgba="0.5 0.5 0.5 1" />
+                <body name="left_link3" pos="-0.112439 0.015792 0.024332">
+                  <inertial pos="0.068353 -0.010963 0.006307" quat="0 0.707107 0 0.707107" mass="0.926377" diaginertia="0.002839 0.002682 0.000672" />
+                  <joint name="left_elbow_flex" type="hinge" axis="0 0.866025 -0.5" limited="true" range="-3.38594 0" damping="0.2" armature="0.01" />
+                  <geom name="left_link3_vis" type="mesh" mesh="arm1_link3" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                  <geom name="left_link3_col" type="mesh" mesh="arm1_link3" group="0" rgba="0.5 0.5 0.5 1" />
+                  <body name="left_link4" pos="0.134412 0.003837 0.002486">
+                    <inertial pos="0.031337 -0.007584 0.00438" quat="0 0.707107 0 0.707107" mass="0.333806" diaginertia="0.000366 0.000321 0.0002" />
+                    <joint name="left_wrist_flex" type="hinge" axis="0 0.866025 -0.5" limited="true" range="-1.65806 1.65806" damping="0.2" armature="0.01" />
+                    <geom name="left_link4_vis" type="mesh" mesh="arm1_link4" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                    <geom name="left_link4_col" type="mesh" mesh="arm1_link4" group="0" rgba="0.5 0.5 0.5 1" />
+                    <body name="left_link5" pos="0.029347 -0.010382 0.00546">
+                      <inertial pos="0.058417 0.000333 -0.010567" quat="0 0.707107 0 0.707107" mass="0.62853" diaginertia="0.000875 0.000859 0.000571" />
+                      <joint name="left_wrist_roll" type="hinge" axis="1 0 0" limited="true" range="-2.74017 2.84489" damping="0.2" armature="0.01" />
+                      <geom name="left_link5_vis" type="mesh" mesh="arm1_link5" rgba="0.92 0.92 0.92 1" contype="0" conaffinity="0" group="1" />
+                      <geom name="left_link5_col" type="box" pos="0.0534662 0.00411267 -0.00591904" size="0.0222963 0.0329544 0.034717" group="0" rgba="0.5 0.5 0.5 1" quat="0.866025 0.5 0 0" />
+                      <body name="left_hand" pos="0 0 0" />
+                    </body>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <geom name="wheel_ground" type="plane" pos="0 0 0" size="0 0 1" group="0" rgba="0 0 0 0" friction="1 0.005 0.0001" contype="4" conaffinity="4" />
+  </worldbody>
+</mujoco>
