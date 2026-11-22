@@ -4,15 +4,52 @@ The SYSMIC robot stands at a kitchen counter with plates, bowls, mugs, cups and 
 AprilTags on it. The VLA pipeline (`vla/vla_ros2_node.py`) uses the head RealSense
 camera to find one object and publishes its point cloud.
 
-## 0. Once
+## 0. Install everything (new machine, once)
 
-First time only: set up the pipeline's Python packages and models (see [vla/README.md](vla/README.md)):
+**Needs:** Ubuntu 24.04, an NVIDIA GPU with about 8 GB and its driver installed
+(`nvidia-smi` works), about 30 GB of free disk, internet. Run the blocks in order.
+All paths below assume the workspace is at `~/sysmic-sim/sysmic_ws`.
 
 ```bash
+# 1. ROS 2 Jazzy (https://docs.ros.org/en/jazzy/Installation/Ubuntu-Install-Debs.html), then:
+sudo apt install -y ros-jazzy-desktop ros-jazzy-sensor-msgs-py python3-colcon-common-extensions \
+    python3-venv git curl
+# optional, to move the robot by hand:
+sudo apt install -y ros-jazzy-joint-state-publisher-gui ros-jazzy-teleop-twist-keyboard
+
+# 2. Miniconda (skip if `conda --version` works)
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh
+bash Miniconda3-latest-Linux-x86_64.sh -b
+~/miniconda3/bin/conda init && source ~/.bashrc
+
+# 3. Simulation env: robosuite + RoboCasa (Python 3.11, versions this was tested with)
+conda create -c conda-forge -n robocasa python=3.11 -y
+conda activate robocasa
+mkdir -p ~/robocasa_ws && cd ~/robocasa_ws
+git clone https://github.com/ARISE-Initiative/robosuite
+cd robosuite && git checkout 5ce6643f3092639d08f7b0f90ed1c6a84f50552c && pip install -e . && cd ..
+git clone https://github.com/robocasa/robocasa
+cd robocasa && git checkout 7bfc60c9d26c02506d4265cbe0e86b35e6e25d42 && pip install -e .
+pip install pyyaml opencv-python          # used by the tableware kitchen (AprilTags)
+python -m robocasa.scripts.setup_macros
+python -m robocasa.scripts.download_kitchen_assets     # about 10 GB
+conda deactivate
+
+# 4. This workspace (new terminal, no conda env active)
+source /opt/ros/jazzy/setup.bash
+git clone -b v2 https://github.com/rahulrajak6942/sysmic_ws.git ~/sysmic-sim/sysmic_ws
+cd ~/sysmic-sim/sysmic_ws && colcon build --symlink-install
+
+# 5. VLA pipeline: Python 3.12 venv at ~/envs/cvenev with torch, transformers, OpenCV,
+#    plus Depth Anything V2 code and weights (372 MB). See vla/README.md.
 bash ~/sysmic-sim/sysmic_ws/vla/setup_vla.sh
 ```
 
-After changing code in `src/`:
+The first pipeline run also downloads Grounding DINO and SAM from Hugging Face (about 1.5 GB).
+Tested with: Ubuntu 24.04, ROS 2 Jazzy, robosuite 1.5.2, RoboCasa 1.0.1, MuJoCo 3.3.1,
+torch 2.15 (CUDA 13.2), transformers 4.51.3, on an RTX 5060 laptop GPU (8 GB).
+
+## 0b. After changing code in `src/`
 
 ```bash
 cd ~/sysmic-sim/sysmic_ws

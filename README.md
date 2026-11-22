@@ -105,6 +105,10 @@ Full details: [src/sysmic_v2_sim/README.md](src/sysmic_v2_sim/README.md).
 
 ## Install
 
+> **For the VLA perception test** (tableware kitchen + `vla/` pipeline), follow the
+> complete install in [VLA_TEST.md](VLA_TEST.md) instead: it uses Ubuntu 24.04 with
+> ROS 2 Jazzy and needs an NVIDIA GPU.
+
 Ubuntu 22.04 with ROS 2 Humble (`ros-humble-desktop`), about 20 GB of free disk
 (RoboCasa kitchen assets are about 10 GB). No GPU is needed to run the simulation.
 
