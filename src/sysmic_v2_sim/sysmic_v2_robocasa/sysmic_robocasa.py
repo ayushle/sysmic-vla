@@ -21,6 +21,14 @@ another copy (the workspace's sysmic_robosuite.py does this for freshly built fi
 import os
 import sys
 
+# On laptops with hybrid graphics (PRIME on-demand) the viewer and the sensor cameras
+# would otherwise run on the integrated GPU, which hangs on the first kitchen frame and
+# leaves the viewer window empty. Render on the NVIDIA GPU when its driver is loaded.
+# Must be set before the first OpenGL context; set __GLX_VENDOR_LIBRARY_NAME=mesa to opt out.
+if os.path.exists("/proc/driver/nvidia/version") and "__GLX_VENDOR_LIBRARY_NAME" not in os.environ:
+    os.environ["__NV_PRIME_RENDER_OFFLOAD"] = "1"
+    os.environ["__GLX_VENDOR_LIBRARY_NAME"] = "nvidia"
+
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +38,7 @@ from sysmic_sensors import Sensors  # noqa: E402,F401
 __all__ = [
     "Sysmic", "SysmicMobileBase", "SysmicLeftGripper", "SysmicRightGripper",
     "make_env", "controller_config", "make_action", "joint_action", "get_joints",
-    "gripper_action", "viewer_closed", "self_test",
+    "gripper_action", "viewer_closed", "self_test", "aim_viewer_at_robot", "robot_view_camera",
     "JOINT_NAMES", "JOINT_LIMITS", "ARM_JOINTS", "URDF_ARM_JOINTS", "ARM_READY",
     "LIFT_RANGE", "GRIPPER_OPEN", "GRIPPER_CLOSED", "ASSET_DIR",
     "Sensors", "sysmic_sensors",
@@ -232,7 +240,85 @@ def make_env(env_name="Kitchen", sensors=None, **kwargs):
                 has_renderer=False, has_offscreen_renderer=False, use_camera_obs=False,
                 ignore_done=True, control_freq=cfg["sim"]["control_freq"])
     opts.update(kwargs)
-    return robosuite.make(**opts)
+    env = robosuite.make(**opts)
+    if opts.get("has_renderer") and opts.get("renderer") == "mjviewer":
+        # RoboCasa's per-layout viewer camera can sit behind a wall (layout 1 shows
+        # plain grey), so aim the viewer at SYSMIC after every reset instead.
+        reset = env.reset
+
+        def reset_and_aim(*args, **kw):
+            obs = reset(*args, **kw)
+            aim_viewer_at_robot(env)
+            return obs
+
+        env.reset = reset_and_aim
+    return env
+
+
+def robot_view_camera(env, distance=2.5, elevations=(-25, -45)):
+    """Free-camera settings that look at the robot from a direction with a clear view.
+
+    Prefers looking from behind the robot. Each candidate direction is checked with a
+    ray from the robot towards the camera; directions blocked by walls or cabinets are
+    skipped, or the camera is moved closer if every direction is blocked.
+    """
+    import mujoco
+
+    m, d = env.sim.model._model, env.sim.data._data
+    robot = env.robots[0].robot_model
+    prefixes = (robot.naming_prefix, robot.base.naming_prefix) + tuple(
+        g.naming_prefix for g in env.robots[0].gripper.values())
+    robot_bodies = {i for i in range(m.nbody)
+                    if (mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_BODY, i) or "").startswith(prefixes)}
+    base = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, f"{robot.base.naming_prefix}support")
+    lookat = d.xpos[base] + np.array([0.0, 0.0, 0.7])
+    forward = d.xmat[base].reshape(3, 3)[:, 0]
+    heading = np.degrees(np.arctan2(forward[1], forward[0]))
+    groups = np.array([0, 1, 1, 0, 0, 0], dtype=np.uint8)  # what robosuite's viewer shows
+    hit = np.zeros(1, dtype=np.int32)
+
+    def clearance(direction):
+        """Free distance from lookat along direction, ignoring the robot itself."""
+        start, travelled = lookat.copy(), 0.0
+        while travelled < distance + 1.0:
+            dist = mujoco.mj_ray(m, d, start, direction, groups, 1, -1, hit)
+            if dist < 0:
+                return np.inf
+            travelled += dist
+            if m.geom_bodyid[hit[0]] not in robot_bodies:
+                return travelled
+            start = start + (dist + 0.01) * direction
+            travelled += 0.01
+        return travelled
+
+    best = None
+    for offset in (0, 30, -30, 60, -60, 90, -90, 135, -135, 180):
+        for elevation in elevations:
+            az, el = np.radians(heading + offset), np.radians(elevation)
+            to_camera = -np.array([np.cos(el) * np.cos(az), np.cos(el) * np.sin(az), np.sin(el)])
+            free = clearance(to_camera)
+            if free >= distance + 0.3:
+                return dict(lookat=lookat, distance=distance, azimuth=heading + offset,
+                            elevation=elevation)
+            if best is None or free > best[0]:
+                best = (free, heading + offset, elevation)
+    free, azimuth, elevation = best
+    return dict(lookat=lookat, distance=max(0.8, free - 0.3), azimuth=azimuth,
+                elevation=elevation)
+
+
+def aim_viewer_at_robot(env):
+    """Point robosuite's mjviewer (open or not yet opened) at the robot."""
+    cam = robot_view_camera(env)
+    env.renderer_config = dict(env.renderer_config or {}, cam_config=cam)
+    renderer = getattr(env, "viewer", None)
+    if renderer is not None and hasattr(renderer, "camera_config"):
+        renderer.camera_config = cam
+        handle = getattr(renderer, "viewer", None)
+        if handle is not None:
+            with handle.lock():
+                for key, value in cam.items():
+                    setattr(handle.cam, key, value)
 
 
 def gripper_action(angle):

@@ -1,0 +1,132 @@
+# SYSMIC robot pose saved 2026-11-23 00:53:57 from the running simulation.
+# Read by sim/sysmic_sim_server.py --pose (vla_test.launch.py uses this file by default).
+# odom: base pose relative to where the robot started; joints: commandable joints (rad, lift in m).
+# tf: every frame relative to odom, and tf_edges: the parent -> child transforms as published.
+# Units: metres, radians; quaternions are [x, y, z, w].
+
+odom:
+  x: 0.005027
+  y: 0.017132
+  yaw: -0.038988
+
+joints:
+  lift_joint: 0.447677
+  arm_left_pan_joint: 0.000000
+  arm_left_shoulder_joint: 0.566185
+  arm_left_elbow_joint: -1.317807
+  arm_left_wrist_flex_joint: 1.658060
+  arm_left_wrist_roll_joint: 0.157917
+  arm_right_pan_joint: -1.323930
+  arm_right_shoulder_joint: 3.490668
+  arm_right_elbow_joint: -3.105512
+  arm_right_wrist_flex_joint: 0.093799
+  arm_right_wrist_roll_joint: 0.017685
+  arm_left_gripper_joint: -0.168382
+  arm_right_gripper_joint: -0.170061
+
+all_joint_states:
+  lift_joint: 0.447677
+  arm_left_pan_joint: 0.000000
+  arm_left_shoulder_joint: 0.566185
+  arm_left_elbow_joint: -1.317807
+  arm_left_wrist_flex_joint: 1.658060
+  arm_left_wrist_roll_joint: 0.157917
+  arm_right_pan_joint: -1.323930
+  arm_right_shoulder_joint: 3.490668
+  arm_right_elbow_joint: -3.105512
+  arm_right_wrist_flex_joint: 0.093799
+  arm_right_wrist_roll_joint: 0.017685
+  arm_left_gripper_joint: -0.168382
+  arm_right_gripper_joint: -0.170061
+  wheel_left_joint: 0.120129
+  wheel_right_joint: -0.004550
+  caster_FL_swivel_joint: -0.683709
+  caster_FL_wheel_joint: -0.853094
+  caster_FR_swivel_joint: -0.853567
+  caster_FR_wheel_joint: -2.665421
+  caster_RL_swivel_joint: 3.714425
+  caster_RL_wheel_joint: 0.344531
+  caster_RR_swivel_joint: 4.469743
+  caster_RR_wheel_joint: -0.709876
+
+tf:  # frame: {parent: odom, xyz, quat}
+  arm_left_base_link: {xyz: [0.004489, 0.131840, 1.206405], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  arm_left_forearm_link: {xyz: [-0.039614, 0.233657, 1.346041], quat: [-0.006196, -0.317794, 0.165346, 0.933611]}
+  arm_left_jaw_link: {xyz: [0.121185, 0.224157, 1.391819], quat: [0.073422, 0.289845, -0.232844, 0.925410]}
+  arm_left_shoulder_pan_link: {xyz: [0.004489, 0.131840, 1.206405], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  arm_left_upper_arm_link: {xyz: [0.037978, 0.186909, 1.273390], quat: [0.004715, 0.241858, -0.158353, 0.957291]}
+  arm_left_wrist_link: {xyz: [0.057650, 0.279079, 1.427060], quat: [0.007392, 0.379127, -0.236414, 0.894604]}
+  arm_left_wrist_roll_link: {xyz: [0.074515, 0.256559, 1.412664], quat: [0.077932, 0.359299, -0.265582, 0.891234]}
+  arm_right_base_link: {xyz: [-0.004445, -0.097185, 1.206406], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  arm_right_forearm_link: {xyz: [0.038443, -0.212344, 1.164604], quat: [0.126048, 0.430018, -0.462001, 0.765344]}
+  arm_right_jaw_link: {xyz: [0.061660, -0.360201, 0.999810], quat: [0.109047, 0.403347, -0.484863, 0.768328]}
+  arm_right_shoulder_pan_link: {xyz: [-0.004445, -0.097185, 1.206406], quat: [0.005991, 0.307276, -0.547593, 0.778260]}
+  arm_right_upper_arm_link: {xyz: [0.015441, -0.164162, 1.267722], quat: [0.617287, 0.607443, 0.483418, -0.127576]}
+  arm_right_wrist_link: {xyz: [0.068049, -0.295649, 1.063256], quat: [0.154747, 0.457664, -0.438435, 0.757873]}
+  arm_right_wrist_roll_link: {xyz: [0.062329, -0.312644, 1.037231], quat: [0.161443, 0.453769, -0.442465, 0.756475]}
+  base_imu_link: {xyz: [-0.074912, 0.020250, 0.270000], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  base_link: {xyz: [0.005027, 0.017132, 0.000000], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  caster_FL_swivel_link: {xyz: [0.223053, 0.218787, 0.084000], quat: [0.000000, 0.000000, -0.353536, 0.935421]}
+  caster_FL_wheel_link: {xyz: [0.208820, 0.248005, 0.037500], quat: [-0.146268, -0.387011, -0.321859, 0.851607]}
+  caster_FR_swivel_link: {xyz: [0.206682, -0.200894, 0.084000], quat: [0.000000, 0.000000, -0.431611, 0.902060]}
+  caster_FR_wheel_link: {xyz: [0.197593, -0.169691, 0.037500], quat: [0.419435, 0.876614, 0.101792, -0.212744]}
+  caster_RL_swivel_link: {xyz: [-0.196628, 0.235158, 0.084000], quat: [0.000000, 0.000000, 0.964587, -0.263764]}
+  caster_RL_wheel_link: {xyz: [-0.164442, 0.239662, 0.037500], quat: [-0.165344, -0.045213, 0.950310, -0.259860]}
+  caster_RR_swivel_link: {xyz: [-0.212999, -0.184523, 0.084000], quat: [0.000000, 0.000000, -0.799351, 0.600864]}
+  caster_RR_wheel_link: {xyz: [-0.192654, -0.159179, 0.037500], quat: [-0.277801, -0.208820, -0.749526, 0.563411]}
+  head_camera_color_optical_frame: {xyz: [0.013435, 0.001793, 1.282677], quat: [-0.640423, 0.665892, -0.275821, 0.265272]}
+  head_camera_depth_optical_frame: {xyz: [0.014020, 0.016781, 1.282677], quat: [-0.640423, 0.665892, -0.275821, 0.265272]}
+  head_camera_link: {xyz: [0.014020, 0.016781, 1.282677], quat: [0.007460, 0.382611, -0.018009, 0.923704]}
+  left_gripper_camera_link: {xyz: [0.118331, 0.227936, 1.367593], quat: [0.077932, 0.359299, -0.265582, 0.891234]}
+  left_gripper_camera_optical_frame: {xyz: [0.118331, 0.227936, 1.367593], quat: [-0.453509, 0.797023, -0.359793, 0.172143]}
+  lidar_base_link: {xyz: [0.005027, 0.017132, 0.285000], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  lidar_top_link: {xyz: [-0.054927, 0.019471, 1.417677], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  lift_carriage_link: {xyz: [-0.111884, 0.021692, 1.087677], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  lift_carriage_link_sysmic_text: {xyz: [-0.111884, 0.021692, 1.087677], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  right_gripper_camera_link: {xyz: [0.076358, -0.351256, 0.981709], quat: [0.161443, 0.453769, -0.442465, 0.756475]}
+  right_gripper_camera_optical_frame: {xyz: [0.076358, -0.351256, 0.981709], quat: [-0.303169, 0.907076, -0.291864, 0.010842]}
+  tray_camera_link: {xyz: [0.077971, 0.014287, 0.907677], quat: [0.010473, 0.537198, -0.016440, 0.843231]}
+  tray_camera_optical_frame: {xyz: [0.077971, 0.014287, 0.907677], quat: [-0.676758, 0.703671, -0.156000, 0.150034]}
+  wheel_left_link: {xyz: [0.007638, 0.084081, 0.081000], quat: [0.001170, 0.060017, -0.019458, 0.998007]}
+  wheel_right_link: {xyz: [0.002415, -0.049817, 0.081000], quat: [0.000044, 0.002275, -0.019493, 0.999807]}
+
+tf_edges:  # child: {parent, xyz, quat}
+  arm_left_base_link: {parent: lift_carriage_link, xyz: [0.111991, 0.114600, 0.118728], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  arm_left_forearm_link: {parent: arm_left_upper_arm_link, xyz: [-0.112439, 0.015792, 0.024332], quat: [0.000000, -0.530224, 0.306125, 0.790664]}
+  arm_left_jaw_link: {parent: arm_left_wrist_roll_link, xyz: [0.055774, -0.001648, 0.023432], quat: [0.000000, -0.072826, 0.042046, 0.996458]}
+  arm_left_shoulder_pan_link: {parent: arm_left_base_link, xyz: [0.000000, 0.000000, 0.000000], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  arm_left_upper_arm_link: {parent: arm_left_shoulder_pan_link, xyz: [0.031317, 0.056332, 0.066985], quat: [0.000000, 0.241904, -0.139663, 0.960196]}
+  arm_left_wrist_link: {parent: arm_left_forearm_link, xyz: [0.134412, 0.003837, 0.002486], quat: [0.000000, 0.638500, -0.368638, 0.675591]}
+  arm_left_wrist_roll_link: {parent: arm_left_wrist_link, xyz: [0.029347, -0.010382, 0.005460], quat: [0.078877, 0.000000, 0.000000, 0.996884]}
+  arm_right_base_link: {parent: lift_carriage_link, xyz: [0.111991, -0.114599, 0.118729], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  arm_right_forearm_link: {parent: arm_right_upper_arm_link, xyz: [-0.112439, -0.013176, 0.025842], quat: [0.000000, 0.865884, 0.499919, -0.018040]}
+  arm_right_jaw_link: {parent: arm_right_wrist_roll_link, xyz: [0.055774, -0.021117, 0.010289], quat: [0.000000, -0.073550, -0.042464, 0.996387]}
+  arm_right_shoulder_pan_link: {parent: arm_right_base_link, xyz: [0.000000, 0.000000, 0.000000], quat: [0.000000, 0.307334, -0.532318, 0.788786]}
+  arm_right_upper_arm_link: {parent: arm_right_shoulder_pan_link, xyz: [0.031317, -0.029845, 0.082277], quat: [0.000000, 0.852868, 0.492404, -0.173653]}
+  arm_right_wrist_link: {parent: arm_right_forearm_link, xyz: [0.134412, -0.000234, 0.004566], quat: [0.000000, 0.040601, 0.023441, 0.998900]}
+  arm_right_wrist_roll_link: {parent: arm_right_wrist_link, xyz: [0.029347, -0.009919, -0.006261], quat: [0.008843, 0.000000, 0.000000, 0.999961]}
+  base_imu_link: {parent: base_link, xyz: [-0.080000, 0.000000, 0.270000], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  base_link: {parent: odom, xyz: [0.005027, 0.017132, 0.000000], quat: [0.000000, 0.000000, -0.019493, 0.999810]}
+  caster_FL_swivel_link: {parent: base_link, xyz: [0.210000, 0.210000, 0.084000], quat: [0.000000, 0.000000, -0.335235, 0.942135]}
+  caster_FL_wheel_link: {parent: caster_FL_swivel_link, xyz: [-0.030000, 0.012500, -0.046500], quat: [0.000000, -0.413729, 0.000000, 0.910400]}
+  caster_FR_swivel_link: {parent: base_link, xyz: [0.210000, -0.210000, 0.084000], quat: [0.000000, 0.000000, -0.413945, 0.910302]}
+  caster_FR_wheel_link: {parent: caster_FR_swivel_link, xyz: [-0.030000, 0.012500, -0.046500], quat: [0.000000, 0.971791, 0.000000, -0.235843]}
+  caster_RL_swivel_link: {parent: base_link, xyz: [-0.210000, 0.210000, 0.084000], quat: [0.000000, 0.000000, 0.959263, -0.282516]}
+  caster_RL_wheel_link: {parent: caster_RL_swivel_link, xyz: [-0.030000, 0.012500, -0.046500], quat: [0.000000, 0.171415, 0.000000, 0.985199]}
+  caster_RR_swivel_link: {parent: base_link, xyz: [-0.210000, -0.210000, 0.084000], quat: [0.000000, 0.000000, -0.787487, 0.616331]}
+  caster_RR_wheel_link: {parent: caster_RR_swivel_link, xyz: [-0.030000, 0.012500, -0.046500], quat: [0.000000, -0.347532, 0.000000, 0.937668]}
+  head_camera_color_optical_frame: {parent: head_camera_link, xyz: [0.000000, -0.015000, 0.000000], quat: [-0.500000, 0.500000, -0.500000, 0.500000]}
+  head_camera_depth_optical_frame: {parent: head_camera_link, xyz: [0.000000, 0.000000, 0.000000], quat: [-0.500000, 0.500000, -0.500000, 0.500000]}
+  head_camera_link: {parent: lift_carriage_link, xyz: [0.126000, 0.000000, 0.195000], quat: [0.000000, 0.382683, 0.000000, 0.923880]}
+  left_gripper_camera_link: {parent: arm_left_wrist_roll_link, xyz: [0.069000, 0.001300, 0.002800], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  left_gripper_camera_optical_frame: {parent: left_gripper_camera_link, xyz: [0.000000, 0.000000, 0.000000], quat: [-0.500000, 0.500000, -0.500000, 0.500000]}
+  lidar_base_link: {parent: base_link, xyz: [0.000000, 0.000000, 0.285000], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  lidar_top_link: {parent: lift_carriage_link, xyz: [0.057000, 0.000000, 0.330000], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  lift_carriage_link: {parent: base_link, xyz: [-0.117000, 0.000000, 1.087677], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  lift_carriage_link_sysmic_text: {parent: lift_carriage_link, xyz: [0.000000, 0.000000, 0.000000], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  right_gripper_camera_link: {parent: arm_right_wrist_roll_link, xyz: [0.069000, -0.001300, 0.002800], quat: [0.000000, 0.000000, 0.000000, 1.000000]}
+  right_gripper_camera_optical_frame: {parent: right_gripper_camera_link, xyz: [0.000000, 0.000000, 0.000000], quat: [-0.500000, 0.500000, -0.500000, 0.500000]}
+  tray_camera_link: {parent: lift_carriage_link, xyz: [0.190000, 0.000000, -0.180000], quat: [0.000000, 0.537300, 0.000000, 0.843391]}
+  tray_camera_optical_frame: {parent: tray_camera_link, xyz: [0.000000, 0.000000, 0.000000], quat: [-0.500000, 0.500000, -0.500000, 0.500000]}
+  wheel_left_link: {parent: base_link, xyz: [0.000000, 0.067000, 0.081000], quat: [0.000000, 0.060028, 0.000000, 0.998197]}
+  wheel_right_link: {parent: base_link, xyz: [0.000000, -0.067000, 0.081000], quat: [0.000000, 0.002275, 0.000000, 0.999997]}

@@ -34,21 +34,21 @@ cameras:
     enabled: true
     link: lift_carriage_link
     pos: [0.126, 0.0, 0.195]   # centre of the 90 x 40 mm face window, flush with the face
-    rpy: [0, 15, 0]
+    rpy: [0, 45, 0]
     rate: 30
     show: true
     size: [0.025, 0.090, 0.025]     # D435i housing, 90 x 25 x 25 mm, in the face window
     color:
       enabled: true
-      width: 640
-      height: 360           # 16:9 like the D435i colour sensor
+      width: 1920
+      height: 1080          # 1080p, the D435i colour sensor's full resolution
       hfov: 69              # degrees (D435i colour: 69 x 42)
       offset: [0.0, -0.015, 0.0]   # colour imager sits 15 mm right of the depth origin
       topic: /head_camera/color/image_raw
     depth:
       enabled: true
-      width: 640
-      height: 360
+      width: 1280
+      height: 720           # the D435i depth sensor's maximum
       hfov: 87              # degrees (D435i depth: 87 x 58)
       min_range: 0.3        # m; closer or farther pixels are 0 (invalid), like the real camera
       max_range: 10.0

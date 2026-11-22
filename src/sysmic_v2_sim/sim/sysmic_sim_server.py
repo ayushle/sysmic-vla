@@ -10,6 +10,11 @@ By hand, in the robocasa conda env (Python 3.11):
     python sysmic_sim_server.py                    # kitchen layout 1, style 1
     python sysmic_sim_server.py --layout 5 --style 12
     python sysmic_sim_server.py --no-viewer        # headless
+    python sysmic_sim_server.py --task SysmicTableware --lift 0.45
+                                                   # tableware + AprilTags (kitchen_objects.py)
+    python sysmic_sim_server.py --task SysmicTableware --seed 0 \
+        --pose ../sysmic_v2_robocasa/vla_test_pose.txt
+                                                   # same kitchen every time, robot in a saved pose
 
 The two sides talk over UDP on this machine only (JSON text):
 
@@ -29,7 +34,15 @@ Command packet (any subset of the keys)
      "joints": {"lift_joint": 0.3, "arm_left_elbow_joint": -1.0,
                 "arm_right_gripper_joint": 1.2, ...},
      "stop": true,
-     "camera_subscribers": [topic, ...]}               camera topics somebody listens to
+     "camera_subscribers": [topic, ...],               camera topics somebody listens to
+     "gt_snapshot": {"camera": stream, "path": file}}  save ground truth for that camera (below)
+
+Ground truth snapshot (for checking perception; send the packet straight to udp 9881)
+    Renders the camera's true depth (m, along the optical axis) and which object every
+    pixel shows, and saves them with numpy.savez to "path": depth, object_index
+    (-1 = no object), object_names, object_pos (world), camera_pos / camera_rot (world,
+    x forward, y left, z up), intrinsics (fx, fy, cx, cy), tag_poses, counter_height, t.
+    The file is written atomically (path + ".tmp", then renamed).
 
 Camera frames (only for watched topics) -> tcp 127.0.0.1:9882, each one:
     >II header length, payload length | header JSON {stream, topic, frame, t, encoding,
@@ -41,6 +54,7 @@ Safety: if no cmd_vel arrives for CMD_VEL_TIMEOUT seconds the base stops.
 """
 import argparse
 import json
+import os
 import queue
 import socket
 import struct
@@ -96,16 +110,21 @@ def joint_map(env):
 class Commands:
     """Latest targets received from ROS; arms, lift and grippers hold their last value."""
 
-    def __init__(self):
+    def __init__(self, lift=0.2, pose=None):
+        self.initial_lift = float(np.clip(lift, *S.LIFT_RANGE))
+        self.initial_joints = dict((pose or {}).get("joints") or {})
+        self.gt_requests = []
         self.reset()
 
     def reset(self):
         self.cmd_vel = (0.0, 0.0)
         self.cmd_vel_time = 0.0
-        self.lift = 0.2
+        self.lift = self.initial_lift
         self.arm = {name: S.ARM_READY[i % 5] for i, name in enumerate(ARM)}
         self.gripper = {"left": S.GRIPPER_OPEN, "right": S.GRIPPER_OPEN}
         self.camera_topics, self.camera_topics_time = set(), 0.0
+        if self.initial_joints:
+            self.apply({"joints": self.initial_joints}, 0.0)
 
     def watched_cameras(self, now):
         """Camera topics somebody subscribes to (reported by the bridge)."""
@@ -121,6 +140,8 @@ class Commands:
             self.camera_topics_time = now
         if msg.get("stop"):
             self.cmd_vel = (0.0, 0.0)
+        if msg.get("gt_snapshot"):
+            self.gt_requests.append(msg["gt_snapshot"])
         if "cmd_vel" in msg:
             v, w = msg["cmd_vel"]
             self.cmd_vel = (float(v), float(w))
@@ -216,6 +237,81 @@ class StateReader:
                      "vx": float(vx), "vy": float(vy), "wz": float(wz)},
             "world": {"x": x, "y": y, "yaw": yaw},
         }
+
+
+def load_pose(path):
+    """Saved robot pose (vla_test_pose.txt format): {"odom": {x, y, yaw}, "joints": {...}}."""
+    import yaml
+
+    with open(os.path.expanduser(path)) as f:
+        data = yaml.safe_load(f) or {}
+    return {"odom": data.get("odom") or {}, "joints": data.get("joints") or {}}
+
+
+def apply_pose(env, pose, reader):
+    """Put the robot straight into a saved pose: base moved by odom (x, y, yaw) from where
+    RoboCasa placed it, joints set directly (the controllers then hold them there)."""
+    model, data = env.sim.model._model, env.sim.data._data
+    reader.read(0, peek=True)
+    x, y, yaw = reader.base_pose()
+    reader.origin = (x, y, yaw)  # odom keeps counting from RoboCasa's start pose
+    b = env.robots[0].robot_model.base.naming_prefix
+    odom = pose.get("odom") or {}
+    for joint, value in (("joint_mobile_forward", odom.get("x", 0.0)),
+                         ("joint_mobile_side", odom.get("y", 0.0)),
+                         ("joint_mobile_yaw", odom.get("yaw", 0.0))):
+        data.qpos[model.jnt_qposadr[model.joint(b + joint).id]] += float(value)
+    names = joint_map(env)
+    for urdf, value in (pose.get("joints") or {}).items():
+        if urdf in names:
+            data.qpos[model.jnt_qposadr[model.joint(names[urdf]).id]] = float(value)
+    data.qvel[:] = 0.0
+    mujoco.mj_forward(model, data)
+    if hasattr(env, "back_off_robot"):  # SysmicTableware: the saved pose may touch a lowered kitchen
+        env.back_off_robot()
+
+
+def save_ground_truth(env, sensors, request, log=print):
+    """Write the ground truth snapshot described in the module docstring."""
+    model, data = env.sim.model._model, env.sim.data._data
+    name, path = request.get("camera"), request.get("path")
+    if name not in sensors.streams or sensors.streams[name]["type"] != "camera" or not path:
+        log(f"gt_snapshot: unknown camera {name!r} or no path")
+        return
+    s = sensors.streams[name]
+    w, h = s["width"], s["height"]
+    renderer, opt = sensors._renderer(w, h, True)
+    renderer.update_scene(data, camera=s["cam_id"], scene_option=opt)
+    depth = renderer.render().astype(np.float32)
+    seg_r = mujoco.Renderer(model, height=h, width=w)
+    seg_r.enable_segmentation_rendering()
+    seg_r.update_scene(data, camera=s["cam_id"], scene_option=opt)
+    seg = seg_r.render()
+    seg_r.close()
+    objects = list(getattr(env, "objects", {}) or {})
+    root_to_index = {int(model.body_rootid[env.obj_body_id[n]]): i for i, n in enumerate(objects)}
+    index = np.full((h, w), -1, np.int16)
+    is_geom = seg[..., 1] == int(mujoco.mjtObj.mjOBJ_GEOM)
+    geom_ids = seg[..., 0]
+    for gid in np.unique(geom_ids[is_geom]):
+        i = root_to_index.get(int(model.body_rootid[model.geom_bodyid[gid]]))
+        if i is not None:
+            index[is_geom & (geom_ids == gid)] = i
+    pos, rot = sensors._mount_pose(s)
+    k = sensors.intrinsics(name)
+    tags = getattr(env, "tag_poses", {}) or {}
+    path = os.path.expanduser(path)
+    tmp = path + ".tmp.npz"
+    np.savez(tmp, depth=depth, object_index=index, object_names=np.array(objects),
+             object_pos=np.array([data.xpos[env.obj_body_id[n]] for n in objects]).reshape(-1, 3),
+             camera_pos=pos, camera_rot=rot,
+             intrinsics=np.array([k["fx"], k["fy"], k["cx"], k["cy"]]),
+             tag_ids=np.array(sorted(tags), int),
+             tag_pos=np.array([tags[i]["pos"] for i in sorted(tags)]).reshape(-1, 3),
+             counter_height=float(getattr(env, "counter_height", None) or np.nan),
+             t=float(data.time))
+    os.replace(tmp, path)
+    log(f"ground truth for {name} saved to {path}")
 
 
 def open_sockets():
@@ -316,9 +412,11 @@ def _jsonable(reading):
     return out
 
 
-def serve(env, render=True, realtime=True, max_steps=None, log=print):
+def serve(env, render=True, realtime=True, max_steps=None, log=print, lift=0.2, pose=None):
     rx, tx = open_sockets()
-    commands, reader = Commands(), StateReader(env)
+    commands, reader = Commands(lift, pose), StateReader(env)
+    if pose:
+        apply_pose(env, pose, reader)
     sensors = S.Sensors(env)
     catalog = {"cameras": [dict(topic=s["topic"], frame=s["frame"], stream=n)
                            for n, s in sensors.streams.items() if s["type"] == "camera"]}
@@ -350,6 +448,11 @@ def serve(env, render=True, realtime=True, max_steps=None, log=print):
                 state["catalog"] = catalog
                 last_catalog = start
             tx.sendto(json.dumps(state).encode(), STATE_ADDR)
+            while commands.gt_requests:
+                try:
+                    save_ground_truth(env, sensors, commands.gt_requests.pop(0), log)
+                except Exception as exc:  # never let a bad request stop the simulation
+                    log(f"gt_snapshot failed: {exc}")
             seq += 1
             spent = time.time() - start
             behind = 0.95 * behind + 0.05 * (period / max(spent, period) if realtime else 1.0)
@@ -377,15 +480,33 @@ def main():
     ap.add_argument("--no-viewer", action="store_true")
     ap.add_argument("--viewer", choices=["true", "false"], default="true",
                     help="same switch in a form launch files can pass")
+    ap.add_argument("--lift", type=float, default=0.2,
+                    help="lift height (m) held until ROS commands another one; 0 ... 0.447")
+    ap.add_argument("--seed", type=int, default=None,
+                    help="RoboCasa seed: the same kitchen and object placement every run")
+    ap.add_argument("--kitchen-drop", type=float, default=0.0,
+                    help="SysmicTableware only: lower the whole kitchen by this many metres")
+    ap.add_argument("--pose", default=None,
+                    help="saved robot pose to start in (vla_test_pose.txt format)")
     ap.add_argument("--sensors", default=None,
                     help="sensors.yaml to use (default: $SYSMIC_SENSORS or the standard one)")
     args = ap.parse_args()
 
     import robosuite
+    from robosuite.environments.base import REGISTERED_ENVS
+
+    if args.task not in robosuite.ALL_ENVIRONMENTS:
+        import robocasa  # noqa: F401  (registers the RoboCasa tasks)
+        import kitchen_objects  # noqa: F401  (registers SysmicTableware)
+    from robocasa.environments.kitchen.kitchen import Kitchen
 
     extra = {}
-    if args.task not in robosuite.ALL_ENVIRONMENTS or args.task == "Kitchen":
+    if issubclass(REGISTERED_ENVS[args.task], Kitchen):
         extra = dict(layout_ids=args.layout, style_ids=args.style)
+        if args.seed is not None:
+            extra["seed"] = args.seed
+    if args.kitchen_drop:
+        extra["kitchen_drop"] = args.kitchen_drop
     view = not args.no_viewer and args.viewer == "true"
     env = S.make_env(args.task, sensors=args.sensors, has_renderer=view,
                      **(dict(renderer="mjviewer", render_camera=None) if view else {}), **extra)
@@ -397,7 +518,10 @@ def main():
     print(f"SYSMIC simulation server running. State -> udp {STATE_ADDR[1]}, "
           f"commands <- udp {COMMAND_ADDR[1]}, camera frames -> tcp {IMAGE_ADDR[1]}. "
           "Ctrl+C or close the viewer to stop.")
-    serve(env, render=view)
+    pose = load_pose(args.pose) if args.pose else None
+    if pose:
+        print(f"Starting in the saved pose from {args.pose}")
+    serve(env, render=view, lift=args.lift, pose=pose)
     env.close()
     print("Stopped.")
 
