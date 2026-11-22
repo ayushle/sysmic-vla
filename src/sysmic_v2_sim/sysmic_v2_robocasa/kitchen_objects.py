@@ -26,7 +26,7 @@ TABLEWARE entries are (name, category) or (name, category, surface):
 RoboCasa finds the surface height itself, so objects always rest on top of it, and it
 makes sure they do not overlap. For an exact position at any height, use place_at().
 
-AprilTags for ~/sysmic-vla/vla_ros2_node.py (tags=False to leave them out)
+AprilTags for vla/ (repo root) vla_ros2_node.py (tags=False to leave them out)
   36h11, 35 mm black square, matching vla-pipeline-v2.py: ids 0-3 flat on the counter
   (0, 1 along the front edge, 2, 3 along the back), 4 and 5 on blocks 5 cm and 12 cm
   high (its CHECK_TAG_IDS). A tag whose spot is taken or hidden by an appliance moves
@@ -66,7 +66,7 @@ TABLEWARE = [
 # a strip along the front edge free for the near AprilTags.
 REGION = dict(size=(0.8, 0.4), pos=("ref", -1.0), offset=(0.0, 0.10))
 
-# AprilTag 36h11 markers for the VLA perception pipeline (~/sysmic-vla/vla-pipeline-v2.py).
+# AprilTag 36h11 markers for the VLA perception pipeline (vla/ (repo root) vla-pipeline-v2.py).
 # Must match TAG_SIZE_METERS / TABLE_TAG_IDS / CHECK_TAG_IDS there.
 TAG_SIZE = 0.035          # side of the black square, m
 TAG_MARGIN_CELLS = 2      # white border around it, in tag cells (1 cell = TAG_SIZE / 8)

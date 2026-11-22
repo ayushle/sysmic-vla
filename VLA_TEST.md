@@ -1,10 +1,18 @@
 # VLA perception test in simulation
 
 The SYSMIC robot stands at a kitchen counter with plates, bowls, mugs, cups and cutlery and
-AprilTags on it. The VLA pipeline (`~/sysmic-vla/vla_ros2_node.py`) uses the head RealSense
+AprilTags on it. The VLA pipeline (`vla/vla_ros2_node.py`) uses the head RealSense
 camera to find one object and publishes its point cloud.
 
-## 0. Once, after changing code
+## 0. Once
+
+First time only: set up the pipeline's Python packages and models (see [vla/README.md](vla/README.md)):
+
+```bash
+bash ~/sysmic-sim/sysmic_ws/vla/setup_vla.sh
+```
+
+After changing code in `src/`:
 
 ```bash
 cd ~/sysmic-sim/sysmic_ws
@@ -34,7 +42,7 @@ Wait for `SYSMIC simulation server running`.
 ## 2. Start the VLA pipeline (terminal 2)
 
 ```bash
-cd ~/sysmic-vla
+cd ~/sysmic-sim/sysmic_ws/vla
 source /opt/ros/jazzy/setup.bash
 ~/envs/cvenev/bin/python vla_ros2_node.py mug --ros-args \
   -p image_topic:=/head_camera/color/image_raw \
@@ -78,7 +86,7 @@ Commands below are run from `~/sysmic-sim/sysmic_ws`.
 - **Only one simulation at a time.** A second one fails with `Address already in use`.
 - **Calibration needs the tags.** The pipeline needs at least 3 of AprilTags 0–3 in view; with
   4 or more it uses the more accurate "dense table plane" fit. Check `status_image` if numbers
-  look wrong. The tag size (35 mm) and ids are set in `~/sysmic-vla/vla-pipeline-v2.py`.
+  look wrong. The tag size (35 mm) and ids are set in `vla/vla-pipeline-v2.py`.
 - **Save a new start pose.** Move the robot (e.g. with `joint_state_publisher_gui` on
   `/sysmic/joint_command` and `teleop_twist_keyboard`), then, with the simulation running:
   ```bash

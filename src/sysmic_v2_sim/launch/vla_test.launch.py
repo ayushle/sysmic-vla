@@ -8,7 +8,7 @@ Same as sim.launch.py (simulation server, ROS 2 bridge, robot_state_publisher, R
 but the kitchen is the SysmicTableware task from sysmic_v2_robocasa/kitchen_objects.py:
 plates, cups, mugs, bowls and cutlery on the counter in front of the robot, plus
 AprilTags 36h11 (0-3 flat on the counter, 4 and 5 on 5 cm / 12 cm blocks) for
-~/sysmic-vla/vla_ros2_node.py.
+vla/ (repo root) vla_ros2_node.py.
 
 The robot starts in the pose saved in sysmic_v2_robocasa/vla_test_pose.txt (base offset,
 lift, arms, grippers; the left gripper camera looks at the counter). The pose's joints

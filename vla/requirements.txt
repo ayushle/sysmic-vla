@@ -1,0 +1,14 @@
+# Python packages for vla_ros2_node.py / vla-pipeline-v2.py (Python 3.12, ROS 2 Jazzy).
+# Versions are the ones it was tested with (~/envs/cvenev). rclpy and the ROS message
+# packages come from ROS 2 Jazzy (source /opt/ros/jazzy/setup.bash), not from pip.
+# torch / torchvision: install the build for your CUDA first if pip picks the wrong one,
+# see https://pytorch.org/get-started/locally/
+torch==2.15.0
+torchvision==0.29.2
+transformers==4.51.3
+huggingface-hub==0.36.2
+accelerate==1.15.0
+opencv-python==5.0.0.93
+numpy==2.5.4
+scipy==1.18.1
+pillow==12.3.0

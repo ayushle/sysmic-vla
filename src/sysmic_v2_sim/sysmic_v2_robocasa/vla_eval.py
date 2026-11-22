@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Score ~/sysmic-vla/vla_ros2_node.py against the simulation's ground truth.
+"""Score vla/vla_ros2_node.py (repo root) against the simulation's ground truth.
 
 Needs the simulation (ros2 launch sysmic_v2_sim vla_test.launch.py) and the node running
 in trigger mode on one of the robot's cameras, e.g.
 
-    ~/envs/cvenev/bin/python ~/sysmic-vla/vla_ros2_node.py --ros-args \\
+    ~/envs/cvenev/bin/python ~/sysmic-sim/sysmic_ws/vla/vla_ros2_node.py --ros-args \\
         -p image_topic:=/left_gripper_camera/image_raw \\
         -p camera_info_topic:=/left_gripper_camera/camera_info \\
         -p image_is_rectified:=true -p mode:=trigger -p use_sim_time:=true

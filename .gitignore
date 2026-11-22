@@ -12,3 +12,7 @@ __pycache__/
 .idea/
 *.swp
 .DS_Store
+
+# VLA pipeline: downloaded by vla/setup_vla.sh
+vla/models/
+vla/third_party/
