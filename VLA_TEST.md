@@ -37,7 +37,7 @@ conda deactivate
 
 # 4. This workspace (new terminal, no conda env active)
 source /opt/ros/jazzy/setup.bash
-git clone -b v2 https://github.com/rahulrajak6942/sysmic_ws.git ~/sysmic-sim/sysmic_ws
+git clone -b vla https://github.com/ayushle/sysmic-vla.git ~/sysmic-sim/sysmic_ws
 cd ~/sysmic-sim/sysmic_ws && colcon build --symlink-install
 
 # 5. VLA pipeline: Python 3.12 venv at ~/envs/cvenev with torch, transformers, OpenCV,
