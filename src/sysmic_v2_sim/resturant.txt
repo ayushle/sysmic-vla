@@ -1,0 +1,35 @@
+
+The sim now starts in a restaurant styled after your resturant.png, with a doorway and corridor the robot can drive through into a back kitchen. ros2 launch sysmic_v2_sim sim.launch.py opens it by default. To get the RoboCasa kitchen back, use task:=Kitchen layout:=5 style:=12.
+
+How it looks:
+- Dining room: terrazzo floor and mint panelled walls with tall botanical prints, like your photo.
+- Bar: backlit wooden shelving with bottles, a marble-top bar with a pickup area, and pink stools.
+- Seating: four tables with pink tub chairs and dark-teal armchairs, plus two tables on a long teal booth sofa.
+- Decor: a planter wall, white pendant lamps and a TV.
+- Kitchen: reached through a 1.2 m doorway and corridor. It has a range with a hood, prep counters, a fridge, a sink, dish shelving, a central prep island and a pass counter under heat lamps.
+- Tableware: RoboCasa plates, bowls, mugs, cups, cutlery, a tray and food are on the bar, the tables, the pass and the island. I didn't download anything; it all uses assets already on your machine.
+
+I left out the restaurant's name and logo from the photo.
+
+What I tested (headless):
+- Driving: the robot drove itself from the bar, through the doorway, to the kitchen pass. It reached each waypoint within a few cm.
+- Speed: with all 27 objects the sim ran at 1.4× real time with no cameras on, and at 1.0× through the sim server.
+- Objects: none fell off.
+- Sensors: the head camera sees the robot's table (plate, bowl, spoon), and both lidars pick up the walls and furniture.
+- ROS side: the package rebuilds and the new launch options show up. I haven't run the full launch with RViz and the ROS bridge, or tried picking objects up with the arms.
+
+One thing to check: the bar and kitchen counters are 0.85 m high and the tables 0.75 m. I didn't test whether the arms can reach objects at those heights; each height is a setting (bar_height, table_height, kitchen_height) if they need changing.
+
+Launch options:
+- spawn:= chooses where the robot starts: bar, table, aisle, kitchen, island, or x,y,yaw.
+- seed:=0 gives the same objects in the same places every launch.
+
+Without ROS, python restaurant.py --spawn kitchen opens a viewer. python restaurant.py --snapshot <dir> saves overview images, like the ones I checked in /tmp/claude-1000/-home-ayush-sysmic-sim-sysmic-ws/52dfd9cf-b907-4fe4-9369-ae97304b0c66/scratchpad/snap/.
+
+Files changed:
+- src/sysmic_v2_sim/sysmic_v2_robocasa/restaurant.py (new): the scene, its floor plan and object lists. It generates its own textures into sysmic_v2_robocasa/assets/restaurant/ (about 600 KB) the first time it runs.
+- sim/sysmic_sim_server.py: new --spawn option, and --seed now works for any scene.
+- launch/sim.launch.py: new task, spawn and seed options, with the restaurant as the default.
+- README.md and the sysmic_v2_robocasa README: a short usage section.
+
+The VLA test launch still uses its own kitchen and is unchanged. Nothing is committed yet. If you commit, include the textures folder so the scene works without regenerating them.

@@ -1,14 +1,17 @@
 """Start the SYSMIC 2.0 RoboCasa simulation with one command.
 
-    ros2 launch sysmic_v2_sim sim.launch.py
-    ros2 launch sysmic_v2_sim sim.launch.py layout:=5 style:=12
+    ros2 launch sysmic_v2_sim sim.launch.py                       # café + kitchen, robot at the bar
+    ros2 launch sysmic_v2_sim sim.launch.py spawn:=kitchen        # ... at the kitchen pass
+    ros2 launch sysmic_v2_sim sim.launch.py task:=Kitchen layout:=5 style:=12   # RoboCasa kitchen
     ros2 launch sysmic_v2_sim sim.launch.py rviz:=false
     ros2 launch sysmic_v2_sim sim.launch.py viewer:=false        # headless simulation
     ros2 launch sysmic_v2_sim sim.launch.py sensors:=/path/to/my_sensors.yaml
+    ros2 launch sysmic_v2_sim sim.launch.py publish_odom:=true   # sim's own /odom + odom->base_link TF
 
 Starts four things:
   1. the RoboCasa simulation, using the Python of the "robocasa" conda env
-  2. the ROS 2 bridge (/clock, /joint_states, /odom, /tf, /cmd_vel, /sysmic/joint_command)
+  2. the ROS 2 bridge (/clock, /joint_states, /cmd_vel, /sysmic/joint_command; /odom and
+     the odom -> base_link TF only with publish_odom:=true, so RTAB-Map can own them)
   3. robot_state_publisher with the SYSMIC URDF
   4. RViz
 
@@ -67,7 +70,8 @@ def load_sensors_module(share):
 def robot_description(share, sensors_cfg=None, sensors_module=None):
     """The URDF for RViz: absolute mesh paths, the same link colours and "SYSMIC"
     lettering as the RoboCasa model (sim/sysmic_colors.py), and a fixed frame for
-    every enabled sensor in sensors.yaml. sysmic.urdf itself is not edited."""
+    every enabled sensor in sensors.yaml (a revolute joint for camera pitch servos).
+    sysmic.urdf itself is not edited."""
     import copy
     import importlib.util
     import xml.etree.ElementTree as ET
@@ -115,6 +119,19 @@ def robot_description(share, sensors_cfg=None, sensors_module=None):
     # sensor frames (<sensor>_link and camera optical frames), from sensors.yaml
     if sensors_cfg is not None:
         boxes = {f"{k}_link": v for k, v in sensors_module.bodies(sensors_cfg).items()}
+        # camera pitch servos (sensors.yaml pitch_servo): a revolute joint each; its angle
+        # comes from /joint_states (<camera>_pitch_joint), so TF follows the servo
+        for parent, child, xyz, rpy, name, lower, upper, velocity in \
+                getattr(sensors_module, "servo_frames", lambda cfg: [])(sensors_cfg):
+            ET.SubElement(root, "link", name=child)
+            joint = ET.SubElement(root, "joint", name=name, type="revolute")
+            ET.SubElement(joint, "parent", link=parent)
+            ET.SubElement(joint, "child", link=child)
+            ET.SubElement(joint, "origin", xyz=" ".join(f"{v:.6f}" for v in xyz),
+                          rpy=" ".join(f"{v:.6f}" for v in rpy))
+            ET.SubElement(joint, "axis", xyz="0 1 0")
+            ET.SubElement(joint, "limit", lower=f"{lower:.6f}", upper=f"{upper:.6f}",
+                          effort="2.9", velocity=f"{velocity:.6f}")
         for parent, child, xyz, rpy in sensors_module.tf_frames(sensors_cfg):
             link = ET.SubElement(root, "link", name=child)
             if child in boxes:  # `show: true`: the sensor's box, as in the simulation
@@ -180,7 +197,9 @@ def launch_setup(context):
 
     simulation = ExecuteProcess(
         cmd=[python, os.path.join(share, "sim", "sysmic_sim_server.py"),
-             "--layout", arg("layout"), "--style", arg("style"), "--viewer", arg("viewer")],
+             "--task", arg("task"), "--spawn", arg("spawn"),
+             "--layout", arg("layout"), "--style", arg("style"), "--viewer", arg("viewer")]
+            + (["--seed", arg("seed")] if arg("seed") else []),
         # The simulation runs on the conda Python (3.11). Keep the ROS Python 3.10
         # packages off its path, and make its prints show up immediately.
         additional_env={"PYTHONPATH": "", "PYTHONUNBUFFERED": "1",
@@ -193,7 +212,11 @@ def launch_setup(context):
         LogInfo(msg=f"[sysmic_v2_sim] simulation python: {python}"),
         LogInfo(msg=f"[sysmic_v2_sim] sensors: {sensors_path}"),
         simulation,
-        Node(package="sysmic_v2_sim", executable="ros2_bridge.py", output="screen"),
+        # publish_odom:=false (default) leaves /odom and the odom -> base_link TF to
+        # RTAB-Map; two publishers of the same TF edge make RViz show the wrong pose
+        Node(package="sysmic_v2_sim", executable="ros2_bridge.py",
+             parameters=[{"publish_odom": arg("publish_odom").lower() in ("true", "1", "yes")}],
+             output="screen"),
         Node(package="robot_state_publisher", executable="robot_state_publisher",
              parameters=[{"robot_description": ParameterValue(
                  robot_description(share, sensors_cfg, sensors_module), value_type=str)},
@@ -216,6 +239,17 @@ def generate_launch_description():
         DeclareLaunchArgument("viewer", default_value="true",
                               description="Show the MuJoCo viewer window"),
         DeclareLaunchArgument("rviz", default_value="true", description="Start RViz"),
+        DeclareLaunchArgument("publish_odom", default_value="false",
+                              description="Bridge publishes ground-truth /odom and the "
+                                          "odom -> base_link TF (off: RTAB-Map provides them)"),
+        DeclareLaunchArgument("task", default_value="SysmicRestaurant",
+                              description="SysmicRestaurant (café + kitchen), Kitchen (RoboCasa), "
+                                          "SysmicTableware or any RoboCasa task"),
+        DeclareLaunchArgument("spawn", default_value="bar",
+                              description="SysmicRestaurant start: bar, table, aisle, kitchen, "
+                                          "island or x,y,yaw"),
+        DeclareLaunchArgument("seed", default_value="",
+                              description="same object models and placement every launch"),
         DeclareLaunchArgument("layout", default_value="1",
                               description="RoboCasa kitchen layout id"),
         DeclareLaunchArgument("style", default_value="1",

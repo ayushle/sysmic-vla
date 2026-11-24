@@ -41,7 +41,8 @@ L = [f"# SYSMIC robot pose saved {datetime.datetime.now():%Y-%m-%d %H:%M:%S} fro
      "# Units: metres, radians; quaternions are [x, y, z, w].", "",
      "odom:", f"  x: {f(od.pose.pose.position.x)}", f"  y: {f(od.pose.pose.position.y)}", f"  yaw: {f(yaw)}", "",
      "joints:"]
-cmd = [nm for nm in js.name if nm == "lift_joint" or (nm.startswith("arm_") and nm.endswith("_joint"))]
+cmd = [nm for nm in js.name if nm == "lift_joint" or nm.endswith("_pitch_joint")
+       or (nm.startswith("arm_") and nm.endswith("_joint"))]  # + camera pitch servos
 L += [f"  {nm}: {f(p)}" for nm, p in zip(js.name, js.position) if nm in cmd]
 L += ["", "all_joint_states:"] + [f"  {nm}: {f(p)}" for nm, p in zip(js.name, js.position)]
 L += ["", "tf:  # frame: {parent: odom, xyz, quat}"]

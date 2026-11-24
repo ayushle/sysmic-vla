@@ -13,6 +13,8 @@ Publishes
     /joint_states   sensor_msgs/JointState      all 23 movable URDF joints
     /odom           nav_msgs/Odometry           pose since start, twist in base_link
     /tf             odom -> base_link
+                    (both only with the parameter publish_odom:=true; leave it off
+                    when RTAB-Map or another odometry node owns the odom frame)
     sensors         every enabled stream of sensors.yaml, on its configured topic:
                     cameras -> sensor_msgs/Image + <topic dir>/camera_info,
                     lidars -> sensor_msgs/LaserScan, IMUs -> sensor_msgs/Imu.
@@ -22,7 +24,10 @@ Subscribes
     /cmd_vel                 geometry_msgs/Twist       linear.x (m/s), angular.z (rad/s)
     /sysmic/joint_command    sensor_msgs/JointState    name[] + position[]:
                              lift_joint (m), arm_{left,right}_{pan,shoulder,elbow,
-                             wrist_flex,wrist_roll,gripper}_joint (rad)
+                             wrist_flex,wrist_roll,gripper}_joint (rad),
+                             <camera>_pitch_joint (rad, camera pitch servos)
+    /camera_rs_pitch         std_msgs/Float64          RealSense pitch servo, degrees
+                             (0 = level, + = down); topic set by sensors.yaml pitch_servo
 
 Nodes that consume these topics should set use_sim_time:=true.
 """
@@ -70,6 +75,7 @@ def main():
     from rclpy.node import Node
     from rosgraph_msgs.msg import Clock
     from sensor_msgs.msg import CameraInfo, Image, Imu, JointState, LaserScan
+    from std_msgs.msg import Float64
     from tf2_ros import TransformBroadcaster
 
     class SysmicBridge(Node):
@@ -83,12 +89,18 @@ def main():
 
             self.clock_pub = self.create_publisher(Clock, "/clock", 10)
             self.joint_pub = self.create_publisher(JointState, "/joint_states", 10)
-            self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
-            self.tf_pub = TransformBroadcaster(self)
+            self.publish_odom = bool(self.declare_parameter("publish_odom", False).value)
+            if self.publish_odom:
+                self.odom_pub = self.create_publisher(Odometry, "/odom", 10)
+                self.tf_pub = TransformBroadcaster(self)
+            else:
+                self.get_logger().info("publish_odom is false: no /odom and no odom -> "
+                                       "base_link TF from the bridge")
             self.create_subscription(Twist, "/cmd_vel", self.on_cmd_vel, 10)
             self.create_subscription(JointState, "/sysmic/joint_command", self.on_joints, 10)
 
             self.scan_pubs, self.imu_pubs, self.image_pubs = {}, {}, {}
+            self.servo_subs = {}  # topic -> subscription, made when the simulation lists a servo
             self.lock = threading.Lock()
             self.image_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.image_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -117,6 +129,16 @@ def main():
             if packet:
                 self.tx.sendto(packet, COMMAND_ADDR)
 
+        def servo_subscription(self, topic, camera):
+            if topic in self.servo_subs:
+                return
+
+            def on_pitch(msg):
+                self.tx.sendto(json.dumps({"camera_pitch": {camera: float(msg.data)}}).encode(),
+                               COMMAND_ADDR)
+            self.servo_subs[topic] = self.create_subscription(Float64, topic, on_pitch, 10)
+            self.get_logger().info(f"{camera} pitch servo: publish degrees on {topic}")
+
         # ---- simulation -> ROS ----
         def poll(self):
             while True:
@@ -129,28 +151,8 @@ def main():
                 except (ValueError, KeyError, TypeError) as exc:
                     self.get_logger().warn(f"bad state packet ignored: {exc}")
 
-        def publish(self, state):
-            t = float(state["t"])
-            if self.last_sim_time is not None and t < self.last_sim_time:
-                self.get_logger().info("simulation time went backwards (scene was reset)")
-            self.last_sim_time = t
-            self.packets += 1
-            sec, nanosec = stamp_parts(t)
-
-            clock = Clock()
-            clock.clock.sec, clock.clock.nanosec = sec, nanosec
-            self.clock_pub.publish(clock)
-
-            js = JointState()
-            js.header.stamp.sec, js.header.stamp.nanosec = sec, nanosec
-            js.name = list(state["names"])
-            js.position = [float(v) for v in state["pos"]]
-            js.velocity = [float(v) for v in state["vel"]]
-            self.joint_pub.publish(js)
-
-            o = state["odom"]
+        def publish_odometry(self, o, sec, nanosec):
             qx, qy, qz, qw = yaw_to_quat(float(o["yaw"]))
-
             odom = Odometry()
             odom.header.stamp.sec, odom.header.stamp.nanosec = sec, nanosec
             odom.header.frame_id = ODOM_FRAME
@@ -178,8 +180,32 @@ def main():
             tf.transform.rotation.w = qw
             self.tf_pub.sendTransform(tf)
 
+        def publish(self, state):
+            t = float(state["t"])
+            if self.last_sim_time is not None and t < self.last_sim_time:
+                self.get_logger().info("simulation time went backwards (scene was reset)")
+            self.last_sim_time = t
+            self.packets += 1
+            sec, nanosec = stamp_parts(t)
+
+            clock = Clock()
+            clock.clock.sec, clock.clock.nanosec = sec, nanosec
+            self.clock_pub.publish(clock)
+
+            js = JointState()
+            js.header.stamp.sec, js.header.stamp.nanosec = sec, nanosec
+            js.name = list(state["names"])
+            js.position = [float(v) for v in state["pos"]]
+            js.velocity = [float(v) for v in state["vel"]]
+            self.joint_pub.publish(js)
+
+            if self.publish_odom:
+                self.publish_odometry(state["odom"], sec, nanosec)
+
             for cam in (state.get("catalog") or {}).get("cameras", []):
                 self.image_publishers(cam["topic"])
+            for servo in (state.get("catalog") or {}).get("servos", []):
+                self.servo_subscription(servo["topic"], servo["camera"])
             for reading in (state.get("sensors") or {}).values():
                 if reading["type"] == "lidar":
                     self.publish_scan(reading)

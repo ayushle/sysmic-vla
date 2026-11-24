@@ -139,5 +139,13 @@ Commands below are run from `~/sysmic-sim/sysmic_ws`.
   ```
   It writes `report.md` (mask IoU, depth MSE / RMSE, centroid error per object) to
   `~/sysmic-sim/vla_eval/<date>/`.
+- **Tilt the RealSense** with its pitch servo, in degrees (0 = level, + = down, limits -30 … 90,
+  turns at 180 °/s):
+  ```bash
+  ros2 topic pub --once /camera_rs_pitch std_msgs/msg/Float64 "{data: 60.0}"
+  ```
+  The angle is in `/joint_states` as `head_camera_pitch_joint` (rad), so TF and RViz follow it,
+  and `save_pose.py` saves it with the rest of the pose. It starts at the `rpy` pitch in
+  `sensors.yaml`; the servo's topic, limits and speed are under `head_camera: pitch_servo:`.
 - **Camera settings** (resolution, tilt) are in `src/sysmic_v2_sim/sysmic_v2_robocasa/sensors.yaml`
   under `head_camera`. Restart the simulation after editing it.

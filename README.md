@@ -22,6 +22,29 @@ src/sysmic_v2_sim/
 └── rviz/sysmic.rviz
 ```
 
+## Restaurant scene (default)
+
+`ros2 launch sysmic_v2_sim sim.launch.py` now starts SYSMIC in a café with a kitchen
+behind it (`SysmicRestaurant`, [`restaurant.py`](src/sysmic_v2_sim/sysmic_v2_robocasa/restaurant.py)):
+terrazzo floor, mint panelled walls with botanical prints, a backlit bar with a pickup
+zone and stools, four 4-person tables with pink tub chairs and teal armchairs, two booth
+tables on a long sofa, a planter wall, pendant lamps, and a doorway + corridor into a
+kitchen (range and hood, prep counters, fridge, sink, dish shelving, a prep island and
+a pass counter under heat lamps). RoboCasa plates, bowls, mugs, cups, cutlery, a tray
+and food sit on the bar, the tables, the pass and the island.
+
+```bash
+ros2 launch sysmic_v2_sim sim.launch.py                    # robot at the bar pickup
+ros2 launch sysmic_v2_sim sim.launch.py spawn:=kitchen seed:=0
+ros2 launch sysmic_v2_sim sim.launch.py task:=Kitchen layout:=5 style:=12   # RoboCasa kitchen as before
+```
+
+`spawn` is `bar`, `table` (end of table 1), `aisle`, `kitchen` (facing the pass),
+`island`, or `x,y,yaw`. Without ROS: `python restaurant.py [--spawn kitchen]` opens a
+viewer, and `S.make_env("SysmicRestaurant", spawn="bar", items={...})` works in your
+own code (`import restaurant` first). The floor plan, surfaces and object lists are at
+the top of `restaurant.py`.
+
 ## Use the robot in RoboCasa (no ROS)
 
 The `sysmic_v2_robocasa` folder is self-contained: copy it anywhere.

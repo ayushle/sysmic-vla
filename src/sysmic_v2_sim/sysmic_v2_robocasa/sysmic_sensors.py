@@ -131,9 +131,10 @@ def streams(cfg=None):
     for name, c in cfg["cameras"].items():
         if not c["enabled"]:
             continue
-        base = dict(sensor=name, link=c["link"], rate=float(c.get("rate", 30)))
         R = _rot(c["rpy"])
         pos = np.array(c["pos"], float)
+        base = dict(sensor=name, link=c["link"], rate=float(c.get("rate", 30)), mount_pos=pos,
+                    offset=np.zeros(3))
         if c.get("model") == "realsense_d435i":
             for kind in ("color", "depth"):
                 sub = c.get(kind) or {}
@@ -141,7 +142,7 @@ def streams(cfg=None):
                     continue
                 off = np.array(sub.get("offset", [0, 0, 0]), float)
                 out[f"{name}_{kind}"] = dict(
-                    base, type="camera", kind=kind, pos=pos + R @ off, R=R,
+                    base, type="camera", kind=kind, pos=pos + R @ off, R=R, offset=off,
                     width=int(sub.get("width", 640)), height=int(sub.get("height", 480)),
                     hfov=float(sub.get("hfov", 69)), min_range=float(sub.get("min_range", 0.0)),
                     max_range=float(sub.get("max_range", 1e9)),
@@ -202,22 +203,59 @@ def bodies(cfg=None):
     return out
 
 
+def servos(cfg=None):
+    """Cameras with an enabled `pitch_servo` in sensors.yaml:
+    {sensor: dict(topic, joint, min, max, speed, initial, roll, yaw)}, angles in degrees.
+
+    The servo tilts the camera about its mount's y axis (after yaw), like changing the
+    pitch in `rpy`; `rpy`'s pitch is where it starts.
+    """
+    cfg = cfg or active()
+    out = {}
+    for name, c in cfg["cameras"].items():
+        sv = c.get("pitch_servo") or {}
+        if not (c["enabled"] and sv.get("enabled", False)):
+            continue
+        roll, pitch, yaw = (float(v) for v in c["rpy"])
+        lo, hi = float(sv.get("min", -30.0)), float(sv.get("max", 90.0))
+        out[name] = dict(topic=sv.get("topic", f"/{name}_pitch"), joint=f"{name}_pitch_joint",
+                         min=lo, max=hi, speed=float(sv.get("speed", 180.0)),
+                         initial=float(np.clip(pitch, lo, hi)), roll=roll, yaw=yaw,
+                         link=c["link"], pos=tuple(float(v) for v in c["pos"]))
+    return out
+
+
+def servo_frames(cfg=None):
+    """Revolute joints for robot_state_publisher, one per camera servo:
+    [(parent, child, xyz, rpy_rad, joint, lower_rad, upper_rad, velocity_rad_s)].
+    The child is <sensor>_servo_link; <sensor>_link hangs off it (see tf_frames)."""
+    return [(sv["link"], f"{name}_servo_link", sv["pos"], (0.0, 0.0, math.radians(sv["yaw"])),
+             sv["joint"], math.radians(sv["min"]), math.radians(sv["max"]), math.radians(sv["speed"]))
+            for name, sv in servos(cfg).items()]
+
+
 def tf_frames(cfg=None):
     """Fixed frames for robot_state_publisher: [(parent, child, xyz, rpy_rad)].
 
     Every enabled sensor gets <sensor>_link on its URDF link; cameras also get their
-    ROS optical frame(s), named as in the published messages.
+    ROS optical frame(s), named as in the published messages. A camera with a pitch
+    servo hangs <sensor>_link off <sensor>_servo_link instead (see servo_frames).
     """
     cfg = cfg or active()
     frames, done = [], set()
     opt = tuple(math.radians(a) for a in OPTICAL_RPY)
+    sv = servos(cfg)
     for name, s in streams(cfg).items():
         sensor = s["sensor"]
         group = cfg["cameras"].get(sensor) or cfg["lidars"].get(sensor) or cfg["imus"].get(sensor)
         link = f"{sensor}_link"
         if link not in done:
-            frames.append((s["link"], link, tuple(group["pos"]),
-                           tuple(math.radians(a) for a in group["rpy"])))
+            if sensor in sv:  # servo joint gives yaw + pitch; the roll is fixed after it
+                frames.append((f"{sensor}_servo_link", link, (0.0, 0.0, 0.0),
+                               (math.radians(sv[sensor]["roll"]), 0.0, 0.0)))
+            else:
+                frames.append((s["link"], link, tuple(group["pos"]),
+                               tuple(math.radians(a) for a in group["rpy"])))
             done.add(link)
         if s["frame"] != link:  # camera streams: optical frame at the stream's own origin
             R_inv = _rot(group["rpy"]).T
@@ -289,6 +327,8 @@ class Sensors:
         self.rng = np.random.default_rng(seed)
         self._renderers = {}
         self._next = {}
+        self.servos = {name: dict(sv, angle=sv["initial"], target=sv["initial"], velocity=0.0)
+                       for name, sv in servos(self.cfg).items()}
         self._resolve()
 
     def _resolve(self):
@@ -324,6 +364,48 @@ class Sensors:
                 s["local_dirs"] = np.stack([np.cos(s["angles"]), np.sin(s["angles"]),
                                             np.zeros(n)], axis=1)
         self.close()  # renderers belong to the previous model
+        for sensor, sv in self.servos.items():
+            sv["housing"] = mj.mj_name2id(m, mj.mjtObj.mjOBJ_GEOM,
+                                          prefixes["robot"] + f"sysmic_{sensor}_body")
+            self._aim(sensor)  # a rebuilt model starts at the configured angle again
+
+    # ---- camera pitch servos ----
+    def set_servo_target(self, sensor, degrees):
+        """Command a camera servo (degrees, + = down, clipped to its min / max)."""
+        sv = self.servos[sensor]
+        sv["target"] = float(np.clip(degrees, sv["min"], sv["max"]))
+
+    def step_servos(self, dt):
+        """Move every servo towards its target at its speed; call once per control step."""
+        for sensor, sv in self.servos.items():
+            err = sv["target"] - sv["angle"]
+            step = float(np.clip(err, -sv["speed"] * dt, sv["speed"] * dt))
+            sv["velocity"] = step / dt if dt > 0 else 0.0
+            if step:
+                sv["angle"] += step
+                self._aim(sensor)
+
+    def servo_joints(self):
+        """[(joint name, angle rad, velocity rad/s)] for /joint_states."""
+        return [(sv["joint"], math.radians(sv["angle"]), math.radians(sv["velocity"]))
+                for sv in self.servos.values()]
+
+    def _aim(self, sensor):
+        """Point the sensor's cameras, housing and stream poses at the servo's angle."""
+        sv, m = self.servos[sensor], self._model
+        R = _rot([sv["roll"], sv["angle"], sv["yaw"]])
+        for s in self.streams.values():
+            if s["sensor"] != sensor:
+                continue
+            s["R"] = R
+            s["pos"] = s["mount_pos"] + R @ s["offset"]
+            if s["type"] == "camera":
+                m.cam_pos[s["cam_id"]] = s["pos"]
+                m.cam_quat[s["cam_id"]] = _quat(R @ _CAM_IN_SENSOR)
+        box = bodies(self.cfg).get(sensor)
+        if box is not None and sv.get("housing", -1) >= 0:
+            m.geom_pos[sv["housing"]] = np.array(sv["pos"]) + R @ box["centre_in_sensor"]
+            m.geom_quat[sv["housing"]] = _quat(R)
 
     # ---- scheduling ----
     def due(self, t=None):

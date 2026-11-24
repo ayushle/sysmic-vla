@@ -11,6 +11,7 @@ sysmic_v2_robocasa/
 ├── sysmic_sensors.py       mounts and reads the sensors
 ├── control_panel.py        a slider for every joint + keyboard driving, in a kitchen
 ├── demo.py                 moves every joint in a kitchen (scripted)
+├── restaurant.py           "SysmicRestaurant": café + kitchen with tableware (python restaurant.py)
 └── assets/                 MuJoCo XML / MJCF files + 28 meshes (32 MB), see below
 ```
 

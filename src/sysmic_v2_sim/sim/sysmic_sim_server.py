@@ -10,6 +10,8 @@ By hand, in the robocasa conda env (Python 3.11):
     python sysmic_sim_server.py                    # kitchen layout 1, style 1
     python sysmic_sim_server.py --layout 5 --style 12
     python sysmic_sim_server.py --no-viewer        # headless
+    python sysmic_sim_server.py --task SysmicRestaurant --spawn kitchen
+                                                   # café + kitchen (restaurant.py)
     python sysmic_sim_server.py --task SysmicTableware --lift 0.45
                                                    # tableware + AprilTags (kitchen_objects.py)
     python sysmic_sim_server.py --task SysmicTableware --seed 0 \
@@ -35,7 +37,8 @@ Command packet (any subset of the keys)
                 "arm_right_gripper_joint": 1.2, ...},
      "stop": true,
      "camera_subscribers": [topic, ...],               camera topics somebody listens to
-     "gt_snapshot": {"camera": stream, "path": file}}  save ground truth for that camera (below)
+     "gt_snapshot": {"camera": stream, "path": file},  save ground truth for that camera (below)
+     "camera_pitch": {camera: degrees}}                pitch servo target (sensors.yaml pitch_servo)
 
 Ground truth snapshot (for checking perception; send the packet straight to udp 9881)
     Renders the camera's true depth (m, along the optical axis) and which object every
@@ -114,6 +117,9 @@ class Commands:
         self.initial_lift = float(np.clip(lift, *S.LIFT_RANGE))
         self.initial_joints = dict((pose or {}).get("joints") or {})
         self.gt_requests = []
+        # camera pitch servos: joint name -> camera, and the latest targets (degrees)
+        self.servo_joint = {sv["joint"]: cam for cam, sv in S.sysmic_sensors.servos().items()}
+        self.servo_targets = {}
         self.reset()
 
     def reset(self):
@@ -142,6 +148,11 @@ class Commands:
             self.cmd_vel = (0.0, 0.0)
         if msg.get("gt_snapshot"):
             self.gt_requests.append(msg["gt_snapshot"])
+        for cam, deg in (msg.get("camera_pitch") or {}).items():
+            if cam in self.servo_joint.values() and np.isfinite(float(deg)):
+                self.servo_targets[cam] = float(deg)
+            else:
+                unknown.append(f"camera_pitch {cam}")
         if "cmd_vel" in msg:
             v, w = msg["cmd_vel"]
             self.cmd_vel = (float(v), float(w))
@@ -149,6 +160,10 @@ class Commands:
         for name, value in (msg.get("joints") or {}).items():
             if name.startswith(("wheel_", "caster_")):
                 continue  # passive in the sim (e.g. sent by joint_state_publisher_gui)
+            if name in self.servo_joint:  # camera pitch servo, in rad like every joint
+                if np.isfinite(float(value)):
+                    self.servo_targets[self.servo_joint[name]] = float(np.degrees(float(value)))
+                continue
             name_in = name
             name = ALIASES.get(name, name)
             value = float(value)
@@ -419,7 +434,9 @@ def serve(env, render=True, realtime=True, max_steps=None, log=print, lift=0.2, 
         apply_pose(env, pose, reader)
     sensors = S.Sensors(env)
     catalog = {"cameras": [dict(topic=s["topic"], frame=s["frame"], stream=n)
-                           for n, s in sensors.streams.items() if s["type"] == "camera"]}
+                           for n, s in sensors.streams.items() if s["type"] == "camera"],
+               "servos": [dict(camera=cam, topic=sv["topic"], joint=sv["joint"])
+                          for cam, sv in sensors.servos.items()]}
     images = ImageSender(log)
     images.start()
     period = 1.0 / env.control_freq
@@ -431,9 +448,16 @@ def serve(env, render=True, realtime=True, max_steps=None, log=print, lift=0.2, 
             if render and S.viewer_closed(env):
                 break
             env.step(commands.action(env, start))
+            for cam, deg in commands.servo_targets.items():
+                sensors.set_servo_target(cam, deg)
+            sensors.step_servos(period)
             if render:
                 env.render()
             state = reader.read(seq)
+            for joint, angle, velocity in sensors.servo_joints():
+                state["names"] = state["names"] + [joint]
+                state["pos"] = state["pos"] + [angle]
+                state["vel"] = state["vel"] + [velocity]
             watched = commands.watched_cameras(start)
             readings = {}
             for name in sensors.due():
@@ -486,6 +510,8 @@ def main():
                     help="RoboCasa seed: the same kitchen and object placement every run")
     ap.add_argument("--kitchen-drop", type=float, default=0.0,
                     help="SysmicTableware only: lower the whole kitchen by this many metres")
+    ap.add_argument("--spawn", default="bar",
+                    help="SysmicRestaurant only: bar, table, aisle, kitchen, island or x,y,yaw")
     ap.add_argument("--pose", default=None,
                     help="saved robot pose to start in (vla_test_pose.txt format)")
     ap.add_argument("--sensors", default=None,
@@ -498,13 +524,19 @@ def main():
     if args.task not in robosuite.ALL_ENVIRONMENTS:
         import robocasa  # noqa: F401  (registers the RoboCasa tasks)
         import kitchen_objects  # noqa: F401  (registers SysmicTableware)
+        import restaurant  # noqa: F401  (registers SysmicRestaurant)
     from robocasa.environments.kitchen.kitchen import Kitchen
 
     extra = {}
     if issubclass(REGISTERED_ENVS[args.task], Kitchen):
         extra = dict(layout_ids=args.layout, style_ids=args.style)
-        if args.seed is not None:
-            extra["seed"] = args.seed
+    if args.seed is not None:
+        extra["seed"] = args.seed
+    if args.task == "SysmicRestaurant":
+        spawn = args.spawn
+        if "," in spawn:  # "x,y,yaw"
+            spawn = tuple(float(v) for v in spawn.split(","))
+        extra["spawn"] = spawn
     if args.kitchen_drop:
         extra["kitchen_drop"] = args.kitchen_drop
     view = not args.no_viewer and args.viewer == "true"
