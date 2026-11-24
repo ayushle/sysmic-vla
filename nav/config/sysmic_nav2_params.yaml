@@ -1,0 +1,467 @@
+# =============================================================================
+#  SYSMIC 2.0 - Nav2 parameters (ROS 2 Jazzy, Nav2 1.3.x)
+#  Used by: ~/sysmic-sim/nav/launch/sysmic_nav2.launch.py
+#
+#  NO localization in Nav2 (no AMCL, no scan matching). Your RTAB-Map localization,
+#  started and localized BEFORE Nav2, provides:  map -> icp_odom -> base_link
+#  Nav2 trusts it and uses ICP odometry (/icp_odom, frame icp_odom) as its odometry.
+#     /map  latched occupancy grid from the RTAB-Map database
+#
+#  Robot facts these numbers come from (sysmic.urdf, sensors.yaml, sysmic_sim_server.py):
+#     differential drive, 4 casters, no lateral motion
+#     base 0.504 x 0.504 m, rear casters reach x = -0.277; arms tucked stay inside the base
+#     height 1.17 m (lift down) .. 1.45 m (lift up)
+#     motor limits 0.5 m/s, 1.0 rad/s (MAX_SPEED, MAX_TURN)
+#     /scan_base  YDLIDAR at z 0.285, sees no robot body
+#     /scan_top   YDLIDAR on the head (z ~1.17 + lift), hits the robot within 0.37 m
+#     D435i depth on the head, pitched 45 deg down -> sees table tops, chair seats,
+#                 the bar counter (the lidars miss these) and also the robot's own tray
+#                 (removed by the crop box in the launch file)
+#
+#  Plugin choices (swap any of them here; every one is a Nav2 plugin):
+#     planner     SmacPlanner2D                (alt: ThetaStarPlanner, SmacPlannerHybrid, NavfnPlanner)
+#     controller  RotationShim -> MPPI DiffDrive (alt: RegulatedPurePursuit, Graceful, DWB)
+#     costmaps    VoxelLayer: 2 lidars + depth cloud (alt: STVL, nvblox)
+#     safety      velocity_smoother -> collision_monitor -> /cmd_vel
+# =============================================================================
+
+# Robot outline in base_link (m): base 0.504 square + rear casters + 1 cm margin.
+# The same polygon is used by both costmaps; the collision monitor reads it from
+# /local_costmap/published_footprint.
+
+bt_navigator:
+  ros__parameters:
+    global_frame: map
+    robot_base_frame: base_link
+    odom_topic: /icp_odom
+    bt_loop_duration: 10
+    default_server_timeout: 20
+    wait_for_service_timeout: 1000
+    action_server_result_timeout: 900.0
+    navigators: ["navigate_to_pose", "navigate_through_poses"]
+    navigate_to_pose:
+      plugin: "nav2_bt_navigator::NavigateToPoseNavigator"
+    navigate_through_poses:
+      plugin: "nav2_bt_navigator::NavigateThroughPosesNavigator"
+    # default_nav_to_pose_bt_xml / default_nav_through_poses_bt_xml left empty:
+    # Nav2's "replanning + recovery" trees are used.
+    error_code_names:
+      - compute_path_error_code
+      - follow_path_error_code
+
+# ---------------------------------------------------------------------------
+# Controller: turn in place toward the path, then MPPI follows it
+# ---------------------------------------------------------------------------
+controller_server:
+  ros__parameters:
+    controller_frequency: 10.0           # = 1 / MPPI model_dt. 20 Hz is not reached while
+                                         # MuJoCo + camera rendering share the CPU (measured 10-15 Hz)
+    costmap_update_timeout: 0.30
+    min_x_velocity_threshold: 0.001
+    min_y_velocity_threshold: 0.5        # diff drive: no y velocity
+    min_theta_velocity_threshold: 0.001
+    failure_tolerance: 0.3
+    odom_topic: /icp_odom
+    progress_checker_plugins: ["progress_checker"]
+    # One checker only: Nav2's default BT does not pick one, and with two loaded every
+    # FollowPath fails. To use the precise one, add it here AND set goal_checker_id in
+    # a custom BT (e.g. a "serve at table" tree).
+    goal_checker_plugins: ["general_goal_checker"]
+    controller_plugins: ["FollowPath"]
+    use_realtime_priority: false
+
+    progress_checker:
+      plugin: "nav2_controller::SimpleProgressChecker"
+      required_movement_radius: 0.3
+      movement_time_allowance: 15.0      # sim can run slower than real time
+
+    general_goal_checker:                # default: aisles, bar, kitchen
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.15
+      yaw_goal_tolerance: 0.20
+    precise_goal_checker:                # defined but not loaded (see goal_checker_plugins)
+      stateful: true
+      plugin: "nav2_controller::SimpleGoalChecker"
+      xy_goal_tolerance: 0.05
+      yaw_goal_tolerance: 0.08
+
+    FollowPath:
+      plugin: "nav2_rotation_shim_controller::RotationShimController"
+      primary_controller: "nav2_mppi_controller::MPPIController"
+      angular_dist_threshold: 0.785      # rad: rotate in place first if path heading is > 45 deg away
+      angular_disengage_threshold: 0.3
+      forward_sampling_distance: 0.5
+      rotate_to_heading_angular_vel: 0.8
+      max_angular_accel: 1.5
+      simulate_ahead_time: 1.0
+      rotate_to_goal_heading: true       # final yaw by turning in place, not by MPPI wiggling
+
+      # ---- MPPI (primary controller; reads its params from this same namespace) ----
+      time_steps: 30                     # 30 x 0.1 s = 3.0 s horizon
+      model_dt: 0.1                      # = controller period
+      batch_size: 1000                   # 2000 is the default; lower leaves CPU for MuJoCo
+      iteration_count: 1
+      motion_model: "DiffDrive"
+      vx_max: 0.40                       # motor max is 0.5; a loaded tray wants less
+      vx_min: -0.10                      # short reverse only: no camera looks backwards
+      vy_max: 0.0
+      wz_max: 1.0                        # = MAX_TURN
+      ax_max: 0.5                        # gentle: drinks on the tray
+      ax_min: -0.8
+      ay_max: 0.0
+      ay_min: 0.0
+      az_max: 1.5
+      vx_std: 0.2
+      vy_std: 0.0
+      wz_std: 0.4
+      temperature: 0.3
+      gamma: 0.015
+      prune_distance: 1.7
+      transform_tolerance: 0.2
+      enforce_path_inversion: false
+      visualize: true
+      regenerate_noises: true
+      TrajectoryVisualizer:
+        trajectory_step: 5
+        time_step: 3
+      critics: ["ConstraintCritic", "CostCritic", "GoalCritic", "GoalAngleCritic",
+                "PathAlignCritic", "PathFollowCritic", "PathAngleCritic",
+                "PreferForwardCritic"]
+      ConstraintCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 4.0
+      GoalCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 1.4
+      GoalAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.0
+        threshold_to_consider: 0.5
+      PreferForwardCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        threshold_to_consider: 0.5
+      CostCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 3.81
+        near_collision_cost: 253
+        critical_cost: 300.0
+        consider_footprint: true         # square robot: check the real outline, not a circle
+        collision_cost: 1000000.0
+        near_goal_distance: 1.0
+        trajectory_point_step: 2
+      PathAlignCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 14.0
+        max_path_occupancy_ratio: 0.05
+        trajectory_point_step: 4
+        threshold_to_consider: 0.5
+        offset_from_furthest: 20
+        use_path_orientations: false
+      PathFollowCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 5.0
+        offset_from_furthest: 5
+        threshold_to_consider: 1.4
+      PathAngleCritic:
+        enabled: true
+        cost_power: 1
+        cost_weight: 2.0
+        offset_from_furthest: 4
+        threshold_to_consider: 0.5
+        max_angle_to_furthest: 1.0
+        mode: 0
+
+# ---------------------------------------------------------------------------
+# Local costmap (icp_odom frame, 4 x 4 m around the robot)
+# ---------------------------------------------------------------------------
+local_costmap:
+  local_costmap:
+    ros__parameters:
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      global_frame: icp_odom       # ICP odometry frame: continuous, never jumps
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+      rolling_window: true
+      width: 4
+      height: 4
+      resolution: 0.05
+      footprint: "[[0.262, 0.262], [0.262, -0.262], [-0.287, -0.262], [-0.287, 0.262]]"
+      footprint_padding: 0.01
+      plugins: ["voxel_layer", "inflation_layer"]
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        footprint_clearing_enabled: true # wipes anything left inside the robot outline
+        publish_voxel_map: true
+        origin_z: 0.0
+        z_resolution: 0.10
+        z_voxels: 16                     # 0 .. 1.6 m: whole robot height, lift up
+        max_obstacle_height: 1.6
+        mark_threshold: 0
+        unknown_threshold: 15
+        combination_method: 1
+        observation_sources: scan_base scan_top depth
+        scan_base:
+          topic: /scan_base
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.0
+          obstacle_max_range: 4.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 5.0
+        scan_top:
+          topic: /scan_top
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: false
+          min_obstacle_height: 0.0
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.40       # m from the sensor: the top lidar hits the robot up to 0.37 m
+          obstacle_max_range: 4.0
+          raytrace_min_range: 0.40
+          raytrace_max_range: 5.0
+        depth:
+          topic: /sysmic/head_camera/points   # cropped D435i cloud (launch file), base_link
+          data_type: "PointCloud2"
+          marking: true
+          clearing: true
+          min_obstacle_height: 0.06      # floor points are not obstacles
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.0
+          obstacle_max_range: 3.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 3.5
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.40           # circumscribed radius is ~0.38 m; keep above it
+      always_send_full_costmap: true
+
+# ---------------------------------------------------------------------------
+# Global costmap (map frame, the RTAB-Map grid + live obstacles)
+# ---------------------------------------------------------------------------
+global_costmap:
+  global_costmap:
+    ros__parameters:
+      update_frequency: 1.0
+      publish_frequency: 1.0
+      global_frame: map
+      robot_base_frame: base_link
+      transform_tolerance: 0.3
+      resolution: 0.05
+      track_unknown_space: true
+      footprint: "[[0.262, 0.262], [0.262, -0.262], [-0.287, -0.262], [-0.287, 0.262]]"
+      footprint_padding: 0.01
+      plugins: ["static_layer", "voxel_layer", "inflation_layer"]
+      static_layer:
+        plugin: "nav2_costmap_2d::StaticLayer"
+        map_topic: /map                  # RTAB-Map, transient local (latched)
+        map_subscribe_transient_local: true
+      voxel_layer:
+        plugin: "nav2_costmap_2d::VoxelLayer"
+        enabled: true
+        footprint_clearing_enabled: true
+        publish_voxel_map: false
+        origin_z: 0.0
+        z_resolution: 0.10
+        z_voxels: 16
+        max_obstacle_height: 1.6
+        mark_threshold: 0
+        unknown_threshold: 15
+        combination_method: 1
+        observation_sources: scan_base scan_top depth
+        scan_base:
+          topic: /scan_base
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: false
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.0
+          obstacle_max_range: 5.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 6.0
+        scan_top:
+          topic: /scan_top
+          data_type: "LaserScan"
+          marking: true
+          clearing: true
+          inf_is_valid: false
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.40
+          obstacle_max_range: 5.0
+          raytrace_min_range: 0.40
+          raytrace_max_range: 6.0
+        depth:
+          topic: /sysmic/head_camera/points
+          data_type: "PointCloud2"
+          marking: true
+          clearing: true
+          min_obstacle_height: 0.06
+          max_obstacle_height: 1.6
+          obstacle_min_range: 0.0
+          obstacle_max_range: 3.0
+          raytrace_min_range: 0.0
+          raytrace_max_range: 3.5
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 4.0
+        inflation_radius: 0.40
+      always_send_full_costmap: true
+
+# ---------------------------------------------------------------------------
+# Global planner
+# ---------------------------------------------------------------------------
+planner_server:
+  ros__parameters:
+    expected_planner_frequency: 20.0
+    costmap_update_timeout: 1.0
+    planner_plugins: ["GridBased"]
+    GridBased:
+      plugin: "nav2_smac_planner::SmacPlanner2D"
+      tolerance: 0.25                    # m: accept a goal this close if the exact one is blocked
+      downsample_costmap: false
+      downsampling_factor: 1
+      allow_unknown: true
+      max_iterations: 1000000
+      max_on_approach_iterations: 1000
+      max_planning_time: 2.0             # s
+      cost_travel_multiplier: 2.0        # >1 keeps paths away from chairs and table corners
+      use_final_approach_orientation: false
+      smoother:
+        max_iterations: 1000
+        w_smooth: 0.3
+        w_data: 0.2
+        tolerance: 1.0e-10
+
+smoother_server:
+  ros__parameters:
+    smoother_plugins: ["simple_smoother"]
+    simple_smoother:
+      plugin: "nav2_smoother::SimpleSmoother"
+      tolerance: 1.0e-10
+      max_its: 1000
+      do_refinement: true
+
+# ---------------------------------------------------------------------------
+# Recovery behaviours
+# ---------------------------------------------------------------------------
+behavior_server:
+  ros__parameters:
+    local_costmap_topic: local_costmap/costmap_raw
+    global_costmap_topic: global_costmap/costmap_raw
+    local_footprint_topic: local_costmap/published_footprint
+    global_footprint_topic: global_costmap/published_footprint
+    cycle_frequency: 10.0
+    behavior_plugins: ["spin", "backup", "drive_on_heading", "assisted_teleop", "wait"]
+    spin:
+      plugin: "nav2_behaviors::Spin"
+    backup:
+      plugin: "nav2_behaviors::BackUp"
+    drive_on_heading:
+      plugin: "nav2_behaviors::DriveOnHeading"
+    wait:
+      plugin: "nav2_behaviors::Wait"
+    assisted_teleop:
+      plugin: "nav2_behaviors::AssistedTeleop"
+    local_frame: icp_odom
+    global_frame: map
+    robot_base_frame: base_link
+    transform_tolerance: 0.2
+    simulate_ahead_time: 2.0
+    max_rotational_vel: 0.8
+    min_rotational_vel: 0.3
+    rotational_acc_lim: 1.5
+
+waypoint_follower:
+  ros__parameters:
+    loop_rate: 20
+    stop_on_failure: false
+    action_server_result_timeout: 900.0
+    waypoint_task_executor_plugin: "wait_at_waypoint"
+    wait_at_waypoint:
+      plugin: "nav2_waypoint_follower::WaitAtWaypoint"
+      enabled: true
+      waypoint_pause_duration: 2000      # ms at each table
+
+# ---------------------------------------------------------------------------
+# cmd_vel chain:  controller/behaviors -> cmd_vel_nav -> velocity_smoother
+#                 -> cmd_vel_smoothed -> collision_monitor -> /cmd_vel -> sim bridge
+# ---------------------------------------------------------------------------
+velocity_smoother:
+  ros__parameters:
+    smoothing_frequency: 20.0
+    stamp_smoothed_velocity_with_smoothing_time: false
+    scale_velocities: true               # keep the arc when one axis is limited
+    feedback: "OPEN_LOOP"
+    max_velocity: [0.40, 0.0, 1.0]
+    min_velocity: [-0.10, 0.0, -1.0]
+    max_accel: [0.5, 0.0, 1.5]
+    max_decel: [-0.8, 0.0, -1.5]
+    odom_topic: "/icp_odom"
+    odom_duration: 0.1
+    deadband_velocity: [0.0, 0.0, 0.0]
+    velocity_timeout: 1.0
+
+collision_monitor:
+  ros__parameters:
+    base_frame_id: "base_link"
+    odom_frame_id: "icp_odom"
+    cmd_vel_in_topic: "cmd_vel_smoothed"
+    cmd_vel_out_topic: "cmd_vel"
+    state_topic: "collision_monitor_state"
+    transform_tolerance: 0.2
+    # A source older than this is "invalid" and the monitor STOPS the robot. In the sim the
+    # depth cloud arrives ~1.4 s late (camera rendering), so 2.0 here. On the real robot
+    # (D435i latency ~50 ms) set 0.5.
+    source_timeout: 1.2
+    base_shift_correction: true
+    stop_pub_timeout: 2.0
+    polygons: ["FootprintApproach", "SlowdownZone"]
+    FootprintApproach:                   # stop if the footprint would touch something within 1.5 s
+      type: "polygon"
+      action_type: "approach"
+      footprint_topic: "/local_costmap/published_footprint"
+      time_before_collision: 1.5
+      simulation_time_step: 0.1
+      min_points: 4
+      visualize: false
+      enabled: true
+    SlowdownZone:                        # half speed when anything is within ~0.35 m ahead / 0.14 m aside
+      type: "polygon"
+      action_type: "slowdown"
+      points: "[[0.65, 0.40], [0.65, -0.40], [-0.35, -0.40], [-0.35, 0.40]]"
+      slowdown_ratio: 0.5
+      min_points: 4
+      visualize: true
+      polygon_pub_topic: "slowdown_zone"
+      enabled: true
+    # scan_top is not used here: it sees the robot's own head/lift column, and the
+    # collision monitor has no range filter for laser scans.
+    observation_sources: [ "depth"]
+    # scan_base:
+    #   type: "scan"
+    #   topic: "/scan_base"
+    #   enabled: true
+    depth:
+      type: "pointcloud"
+      topic: "/sysmic/head_camera/points"
+      min_height: 0.06
+      max_height: 1.6
+      enabled: true
