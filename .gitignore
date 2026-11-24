@@ -1,0 +1,16 @@
+# colcon output
+sysmic_ws/
+vla_eval/
+
+
+# Python
+__pycache__/
+*.pyc
+
+# editor / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+
